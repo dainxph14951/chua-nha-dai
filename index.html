@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Chùa Hà Online 3D · Cầu duyên</title>
+<meta name="description" content="Đi chùa Hà online 3D: lạy Phật, lần tràng hạt, tụng kinh, thiền, dâng lễ và xin quẻ cầu duyên.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Noto+Serif:ital,wght@0,600;0,700;1,500&display=swap&subset=vietnamese" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "./lib/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="loading">Đang mở cổng chùa…</div>
+
+<!-- HUD -->
+<div class="hud" id="profile">
+  <div class="ava">🪷</div>
+  <div>
+    <div class="nm" id="pName">Phật tử</div>
+    <div class="lv" id="pLevel">Hạt sen · bậc 1</div>
+    <div class="bar"><i id="pBar"></i></div>
+  </div>
+</div>
+<div class="hud" id="merit"><div class="pill">🪷 <span id="pMerit">0</span> công đức</div></div>
+<div class="hud" id="title" style="pointer-events:none">
+  <h1>Chùa Hà · Đại Hùng Bảo Điện</h1>
+  <div class="on"><b>●</b> <span id="online">0</span> người trong chùa <span style="opacity:.6">(phần lớn là bot mô phỏng)</span></div>
+  <div id="feed">🪷 Chào mừng thập phương về chùa Hà cầu duyên</div>
+</div>
+<div class="hud" id="side">
+  <button class="ib" id="bSound" title="Âm thanh">🔊</button>
+  <button class="ib" id="bHelp" title="Hướng dẫn">❓</button>
+  <button class="ib" id="bCam" title="Đặt lại góc nhìn">🎥</button>
+  <button class="ib" id="bLook" title="Đổi pháp danh / trang phục">👘</button>
+</div>
+<div class="hud" id="zoom">
+  <button class="ib" id="zIn">＋</button>
+  <button class="ib" id="zOut">－</button>
+</div>
+<div class="hud" id="joy"><i></i></div>
+<div class="hud" id="actions">
+  <button class="act" data-a="bow"><span>🙇</span>Lạy Phật</button>
+  <button class="act" data-a="beads"><span>📿</span>Tràng hạt</button>
+  <button class="act" data-a="chant"><span>🪘</span>Tụng kinh</button>
+  <button class="act" data-a="medi"><span>🧘</span>Thiền</button>
+  <button class="act" data-a="offer"><span>🪷</span>Dâng lễ</button>
+  <button class="act" data-a="que"><span>🎋</span>Cầu duyên</button>
+</div>
+<button class="hud" id="sitBtn">Ngồi xuống</button>
+<div class="hud" id="beads">
+  <div class="cnt" id="beadCnt">0 / 108</div>
+  <button id="beadTap">Lần hạt</button>
+  <button id="beadAuto">Tự lần</button>
+  <button id="beadClose">✕</button>
+</div>
+<div class="hud" id="medi">🧘 Đang thiền · <span id="mediT">0:00</span><br><small style="font-size:12px;opacity:.8">Di chuyển để kết thúc</small></div>
+<div class="hud" id="toast"></div>
+
+<!-- Start -->
+<div class="modal show" id="start">
+  <div class="card">
+    <div class="kick">Thánh Đức tự · Nam mô A Di Đà Phật</div>
+    <h1>Chùa Hà Online</h1>
+    <div class="sub" style="text-align:center">Vào chánh điện 3D, lạy Phật, lần hạt và xin quẻ cầu duyên</div>
+    <label for="inName">Pháp danh / tên hiển thị</label>
+    <input id="inName" maxlength="18" placeholder="VD: Thích Code Dạo">
+    <label>Màu áo</label>
+    <div class="opts" id="robeOpts"></div>
+    <label>Kiểu tóc</label>
+    <div class="opts" id="hairOpts"></div>
+    <button class="btn full" id="enter">🙏 Vào chùa</button>
+    <div class="note">Mẹo: kéo màn hình để xoay góc nhìn · WASD / cần điều khiển để đi · lại gần bồ đoàn để ngồi.</div>
+  </div>
+</div>
+
+<!-- Dâng lễ -->
+<div class="modal" id="mOffer">
+  <div class="card">
+    <button class="x" data-close>✕</button>
+    <h2>Dâng lễ</h2>
+    <div class="sub">Lễ vật sẽ được đặt lên bàn thờ trước Phật. Lễ chay, tâm thành là đủ.</div>
+    <div class="offer">
+      <button data-o="lotus"><span>🪷</span>Hoa sen</button>
+      <button data-o="fruit"><span>🍊</span>Mâm quả</button>
+      <button data-o="incense"><span>🕯️</span>Nén hương</button>
+      <button data-o="candle"><span>🕯</span>Đôi nến</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cầu duyên -->
+<div class="modal" id="mQue">
+  <div class="card">
+    <button class="x" data-close>✕</button>
+    <h2>Cầu duyên chùa Hà</h2>
+    <div class="tabs"><button class="tab on" data-t="pray">🙏 Khấn</button><button class="tab" data-t="que">🎋 Xin quẻ</button></div>
+    <div id="tPray">
+      <div class="row2">
+        <div><label for="qName">Tín chủ</label><input id="qName" placeholder="Tên bạn"></div>
+        <div><label for="qYear">Năm sinh</label><input id="qYear" type="number" placeholder="1998"></div>
+      </div>
+      <label for="qAddr">Ngụ tại</label><input id="qAddr" placeholder="VD: Tiền Hải, Thái Bình">
+      <label>Mong một người…</label>
+      <div class="opts" id="traits"></div>
+      <label for="qWish">Khấn thêm</label><textarea id="qWish" placeholder="VD: Xin cho con gặp được người thương trước Tết…"></textarea>
+      <button class="btn" id="doPray">🙏 Thành tâm khấn</button>
+      <div id="prayOut"></div>
+    </div>
+    <div id="tQue" style="display:none">
+      <div class="sub">Chắp tay, nghĩ về điều mình cầu, rồi lắc ống xăm.</div>
+      <div style="text-align:center"><button class="btn" id="doShake">🎋 Lắc ống xăm</button></div>
+      <div id="queOut"></div>
+      <div id="coinBox" style="display:none;text-align:center;margin-top:14px">
+        <div class="sub">Gieo 2 đồng âm dương hỏi quẻ có ứng không</div>
+        <span class="coin" id="c1">?</span><span class="coin" id="c2">?</span>
+        <div id="coinMsg" style="margin-top:8px;font-weight:700"></div>
+        <button class="btn ghost" id="doCoin">🪙 Gieo âm dương</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Help -->
+<div class="modal" id="mHelp">
+  <div class="card help">
+    <button class="x" data-close>✕</button>
+    <h2>Hướng dẫn</h2>
+    <ul>
+      <li><b>Đi lại:</b> cần điều khiển góc trái, hoặc phím W A S D / mũi tên.</li>
+      <li><b>Xoay góc nhìn:</b> kéo màn hình. Nút ＋ / － hoặc con lăn chuột để phóng to, thu nhỏ.</li>
+      <li><b>Ngồi:</b> lại gần bồ đoàn rồi bấm "Ngồi xuống" (phím E).</li>
+      <li><b>Lạy Phật:</b> 3 lạy, +3 công đức.</li>
+      <li><b>Tràng hạt:</b> bấm "Lần hạt" (phím Space). Tròn 108 hạt được +20 công đức.</li>
+      <li><b>Tụng kinh:</b> gõ mõ niệm "Nam mô A Di Đà Phật".</li>
+      <li><b>Thiền:</b> ngồi yên, cứ 10 giây được +1 công đức.</li>
+      <li><b>Dâng lễ</b> và <b>Cầu duyên:</b> khấn, xin quẻ, gieo âm dương.</li>
+    </ul>
+    <div class="note">Đây là bản chơi một mình: những người khác trong chùa là bot mô phỏng. Công đức chỉ lưu trên trình duyệt của bạn. Trang mang tính giải trí. Muốn linh hơn thì ghé chùa Hà thật ở phố Chùa Hà, Cầu Giấy, Hà Nội 🙏</div>
+  </div>
+</div>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>
