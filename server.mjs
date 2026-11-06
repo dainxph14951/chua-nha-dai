@@ -124,7 +124,7 @@ export function createRoomServer() {
       if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
       const filename = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
       // Only public assets are served; never expose source, Git metadata, or dotfiles.
-      if (!['index.html', 'style.css', 'game.js', 'room.js', 'lib/three.module.js', 'lib/RoomEnvironment.js'].includes(filename)) {
+      if (!['index.html', 'style.css', 'game.js', 'room.js', 'work-fortunes.js', 'lib/three.module.js', 'lib/RoomEnvironment.js'].includes(filename)) {
         res.writeHead(404); return res.end('Not found');
       }
       const data = await readFile(path.join(ROOT, filename));

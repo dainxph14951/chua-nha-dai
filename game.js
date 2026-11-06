@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from './lib/RoomEnvironment.js';
 import { SharedRoom, getTopMerit } from './room.js';
+import { WORK_FORTUNES } from './work-fortunes.js';
 
 /* =========================================================
    Chùa Hà Online 3D — game.js
@@ -497,8 +498,8 @@ function nameSprite(text, color = '#ffffff', sub = '') {
 }
 
 class Avatar {
-  constructor({ name, robe, hair, skin = 0, isPlayer = false, level = 1 }) {
-    this.name = name; this.isPlayer = isPlayer; this.level = level;
+  constructor({ name, robe, hair, skin = 0, isPlayer = false, level = 1, subtitle = null }) {
+    this.name = name; this.isPlayer = isPlayer; this.level = level; this.subtitle = subtitle;
     this.root = new THREE.Group();
     this.pivot = new THREE.Group(); this.pivot.position.y = 0.12; this.root.add(this.pivot);
     this.inner = new THREE.Group(); this.inner.position.y = -0.12; this.pivot.add(this.inner);
@@ -506,6 +507,7 @@ class Avatar {
     this.aura = new THREE.Mesh(G.aura, AM.aura.clone()); this.aura.rotation.x = -Math.PI / 2; this.aura.position.y = 0.05; this.root.add(this.aura);
     this.robeMesh = new THREE.Mesh(G.robe, robeMat(robe)); this.inner.add(this.robeMesh);
     const sash = new THREE.Mesh(G.sash, AM.sash); sash.position.y = 0.48; sash.rotation.set(Math.PI / 2, 0.35, 0); sash.scale.set(1, 1, 1); this.inner.add(sash);
+    this.sash = sash;
     const beads = new THREE.Mesh(G.beads, AM.beads); beads.position.set(0, 0.86, 0.04); beads.rotation.x = Math.PI / 2 + 0.25; this.inner.add(beads);
     const sk = AM.skin[skin % AM.skin.length];
     this.head = new THREE.Mesh(G.head, sk); this.head.position.y = 1.3; this.inner.add(this.head);
@@ -514,12 +516,14 @@ class Avatar {
       const cap = new THREE.Mesh(G.hairCap, hm); cap.position.set(0, 1.31, -0.02); cap.rotation.x = -0.32; this.inner.add(cap);
       if (hair === 'bui' || hair === 'bac') { const b = new THREE.Mesh(G.bun, hm); b.position.set(0, 1.62, -0.3); this.inner.add(b); }
     }
+    this.hands = [];
     for (const sx of [-1, 1]) {
       const e = new THREE.Mesh(G.eye, AM.eye); e.position.set(sx * 0.14, 1.3, 0.39); e.scale.y = 1.3; this.inner.add(e);
       const b = new THREE.Mesh(G.blush, AM.blush); b.position.set(sx * 0.24, 1.2, 0.36); b.rotation.y = sx * 0.55; this.inner.add(b);
       const h = new THREE.Mesh(G.hand, sk); h.position.set(sx * 0.05, 0.8, 0.43); h.scale.set(0.8, 1.4, 0.8); this.inner.add(h);
+      this.hands.push(h);
     }
-    this.tag = nameSprite(name, isPlayer ? '#ffd98a' : '#ffffff', 'Hạt sen · bậc ' + level);
+    this.tag = nameSprite(name, isPlayer ? '#ffd98a' : '#ffffff', subtitle ?? 'Hạt sen · bậc ' + level);
     this.tag.position.y = 2.15; this.root.add(this.tag);
     scene.add(this.root);
 
@@ -531,7 +535,7 @@ class Avatar {
   setName(name, level) {
     this.name = name; this.level = level;
     this.root.remove(this.tag); this.tag.material.map.dispose(); this.tag.material.dispose();
-    this.tag = nameSprite(name, this.isPlayer ? '#ffd98a' : '#ffffff', 'Hạt sen · bậc ' + level);
+    this.tag = nameSprite(name, this.isPlayer ? '#ffd98a' : '#ffffff', this.subtitle ?? 'Hạt sen · bậc ' + level);
     this.tag.position.y = this.state === 'sit' ? 1.95 : 2.15; this.root.add(this.tag);
   }
   dispose() {
@@ -936,7 +940,11 @@ const ACTIONS = {
     setOn('medi', true); $('#medi').style.display = 'block'; bellSound(174, 6, 0.25);
   },
   offer() { openModal('mOffer'); },
-  que() { $('#qName').value = $('#qName').value || P.name; openModal('mQue'); },
+  que() {
+    $('#qName').value = $('#qName').value || P.name;
+    openModal('mQue');
+    $('.tab[data-t="que"]').click();
+  },
 };
 $$('.act').forEach((b) => b.onclick = () => { if (player) ACTIONS[b.dataset.a](); });
 
@@ -984,12 +992,25 @@ $$('.offer button').forEach((b) => b.onclick = () => {
 
 /* ---------------- Cầu duyên: khấn + quẻ ---------------- */
 const TRAITS = ['hiểu mình', 'chân thành', 'biết nấu ăn', 'hiếu thảo', 'vui tính', 'chung chí hướng', 'không ghen vô lý', 'rep tin nhắn nhanh', 'chịu được mình deploy tối thứ Sáu', 'không push thẳng lên main'];
+let meritNoticeTimer;
+function canDrawLoveFortune() {
+  if (Number.isFinite(P.merit) && P.merit >= 50) return true;
+  const current = Number.isFinite(P.merit) ? Math.max(0, P.merit) : 0;
+  const notice = $('#meritNotice');
+  notice.textContent = `Cần đủ 50 công đức để rút quẻ cầu duyên. Bạn có ${current} công đức, còn thiếu ${50 - current}. Hãy lạy Phật, lần hạt hoặc thiền để tích thêm công đức nhé!`;
+  notice.hidden = false;
+  clearTimeout(meritNoticeTimer);
+  meritNoticeTimer = setTimeout(() => { notice.hidden = true; }, 5000);
+  return false;
+}
 $('#traits').innerHTML = TRAITS.map((t) => `<button class="opt">${t}</button>`).join('');
 $('#traits').onclick = (e) => { if (e.target.classList.contains('opt')) e.target.classList.toggle('on'); };
 $$('.tab').forEach((b) => b.onclick = () => {
+  if (b.dataset.t === 'que' && !canDrawLoveFortune()) return;
   $$('.tab').forEach((x) => x.classList.toggle('on', x === b));
   $('#tPray').style.display = b.dataset.t === 'pray' ? 'block' : 'none';
   $('#tQue').style.display = b.dataset.t === 'que' ? 'block' : 'none';
+  $('#tWork').style.display = b.dataset.t === 'work' ? 'block' : 'none';
 });
 const CAN = ['Canh', 'Tân', 'Nhâm', 'Quý', 'Giáp', 'Ất', 'Bính', 'Đinh', 'Mậu', 'Kỷ'], CHI = ['Thân', 'Dậu', 'Tuất', 'Hợi', 'Tý', 'Sửu', 'Dần', 'Mão', 'Thìn', 'Tỵ', 'Ngọ', 'Mùi'];
 const canChi = (y) => { y = parseInt(y, 10); return y ? CAN[y % 10] + ' ' + CHI[y % 12] : ''; };
@@ -1028,6 +1049,8 @@ const QUE = [
 ];
 let queCount = 0;
 $('#doShake').onclick = () => {
+  if ($('#doShake').disabled || !canDrawLoveFortune()) return;
+  $('#doShake').disabled = true;
   $('#queOut').innerHTML = '<div class="sub" style="text-align:center;margin-top:12px">🎋 Lóc cóc… lóc cóc…</div>'; $('#coinBox').style.display = 'none';
   let n = 0; const iv = setInterval(() => { mo(0.35); if (++n > 6) clearInterval(iv); }, 200);
   setTimeout(() => {
@@ -1039,6 +1062,40 @@ $('#doShake').onclick = () => {
     if (q.lvl.includes('cát')) petals(q.lvl === 'Đại cát' ? 30 : 14);
     queCount++; feed(`🎋 ${P.name} vừa xin được quẻ ${q.lvl}`);
     if (queCount <= 3) addMerit(2);
+    $('#doShake').disabled = false;
+  }, 1500);
+};
+$('#doWorkShake').onclick = () => {
+  const button = $('#doWorkShake');
+  if (button.disabled || !player) return;
+  button.disabled = true;
+  $('#workQueOut').textContent = '🎋 Đang lắc ống xăm công việc…';
+  let taps = 0;
+  const sound = setInterval(() => { mo(0.35); if (++taps >= 6) clearInterval(sound); }, 200);
+  setTimeout(() => {
+    const index = Math.floor(Math.random() * WORK_FORTUNES.length), q = WORK_FORTUNES[index];
+    const out = $('#workQueOut'); out.replaceChildren();
+    const card = document.createElement('div'); card.className = 'que';
+    for (const [tag, className, text] of [
+      ['span', 'num', `Công việc · Quẻ số ${index + 1}`], ['span', 'lvl', q.lvl],
+      ['h3', '', q.title], ['div', 'tho', q.tho],
+    ]) {
+      const el = document.createElement(tag); el.className = className; el.textContent = text; card.append(el);
+    }
+    const dl = document.createElement('dl');
+    for (const [label, text] of [['Lời giải', q.giai], ['Nên làm', q.lam], ['Thời điểm', q.thoi]]) {
+      const dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = label; dd.textContent = text; dl.append(dt, dd);
+    }
+    card.append(dl);
+    const copyButton = document.createElement('button'); copyButton.className = 'btn ghost';
+    copyButton.textContent = '📋 Chép quẻ công việc';
+    copyButton.onclick = () => copy(`💼 Quẻ công việc số ${index + 1} — ${q.title} (${q.lvl})\n${q.tho}\n\nLời giải: ${q.giai}\nNên làm: ${q.lam}\nThời điểm: ${q.thoi}\n\n— Chùa Hà Online 3D · Quẻ giải trí`);
+    out.append(card, copyButton);
+    bellSound(300, 2.5, 0.2);
+    if (q.lvl.includes('cát')) petals(q.lvl === 'Đại cát' ? 30 : 14);
+    feed(`💼 ${P.name} vừa xin quẻ công việc ${q.lvl}`);
+    button.disabled = false;
   }, 1500);
 };
 $('#doCoin').onclick = () => {
@@ -1122,6 +1179,111 @@ function updatePlayer(dt, t) {
   player.update(dt, t, moving);
 }
 
+/* ---------------- Nhân vật mô phỏng trong chùa ---------------- */
+const npcs = [];
+const NPC_NAMES = [
+  'Thích em hơi nhiều', 'Thích đủ thứ', 'Thích mập mờ', 'Thích vậy đó',
+  'Thích thì chiền', 'Doãn Chí Bình', 'Thích bình yên', 'Thích trà sữa',
+  'Thích hết deadline', 'Thích ngủ sớm',
+];
+const NPC_CHANTS = ['Nam mô A Di Đà Phật', 'A Di Đà Phật', 'Nguyện cầu bình an', 'Cầu duyên lành 🙏'];
+const PAUSE_MODES = ['bow', 'chant', 'meditate'];
+const broomHandleMat = mat(0x9f6c36), broomStrawMat = mat(0xc9a65b);
+const broomHandleGeo = new THREE.CylinderGeometry(0.025, 0.032, 1.4, 8);
+const broomStrawGeo = new THREE.ConeGeometry(0.24, 0.38, 10);
+const broomFiberGeo = new THREE.CylinderGeometry(0.009, 0.014, 0.39, 4);
+function makeBroom(avatar) {
+  const broom = new THREE.Group(); broom.position.set(0.48, 0.95, 0.44); broom.rotation.z = -0.22;
+  mesh(broomHandleGeo, broomHandleMat, 0, 0, 0, broom);
+  const straw = mesh(broomStrawGeo, broomStrawMat, 0, -0.67, 0, broom); straw.scale.z = 0.4;
+  for (let i = -4; i <= 4; i++) {
+    const fiber = mesh(broomFiberGeo, broomStrawMat, i * 0.036, -0.7, 0.035, broom);
+    fiber.rotation.z = i * 0.07;
+  }
+  avatar.inner.add(broom);
+  return broom;
+}
+for (let i = 0; i < NPC_NAMES.length; i++) {
+  const side = i % 2 ? -1 : 1;
+  // Lối giữa, hai đầu hàng bồ đoàn và khe giữa các dãy.
+  const route = [{ x: side * 0.9, z: 13.4 }, { x: side * 0.9, z: -12 },
+    { x: side * 4.575, z: -12 }, { x: side * 4.575, z: 13.4 }];
+  const avatar = new Avatar({ name: NPC_NAMES[i], robe: ROBES[i % ROBES.length].c,
+    hair: HAIRS[i % HAIRS.length].id, skin: i % 3, subtitle: 'Phật tử · Mô phỏng' });
+  const segment = i % route.length, from = route[segment], to = route[(segment + 1) % route.length];
+  avatar.pos.set(THREE.MathUtils.lerp(from.x, to.x, (i + 1) / 12), 0,
+    THREE.MathUtils.lerp(from.z, to.z, (i + 1) / 12));
+  avatar.faceAltar();
+  avatar.ai = { role: 'pilgrim', route, waypoint: (segment + 1) % route.length,
+    mode: i % 4 === 0 ? 'walk' : PAUSE_MODES[i % 3], timer: 5 + i, chantT: i * 0.4, cycle: i };
+  if (avatar.ai.mode === 'bow') avatar.bow(3);
+  npcs.push(avatar);
+}
+for (const [i, name] of ['Ni cô Tịnh Tâm', 'Ni cô Diệu An', 'Ni cô Liên Hoa'].entries()) {
+  const route = i === 1
+    ? [{ x: 8.475, z: 13.4 }, { x: 8.475, z: -12.2 }, { x: -8.475, z: -12.2 }, { x: -8.475, z: 13.4 }]
+    : [{ x: -4.575, z: 13.4 }, { x: -4.575, z: -12.2 }, { x: 4.575, z: -12.2 }, { x: 4.575, z: 13.4 }];
+  const avatar = new Avatar({ name, robe: i === 2 ? 0x8a5a3a : 0x8d8d92, hair: 'troc',
+    subtitle: 'Ni cô quét chùa · Mô phỏng' });
+  avatar.sash.material = robeMat(0x62616b);
+  avatar.hands[0].position.set(0.4, 0.72, 0.44);
+  avatar.hands[1].position.set(0.48, 1.08, 0.44);
+  avatar.pos.set(route[i].x, 0, route[i].z);
+  avatar.ai = { role: 'nun', route, waypoint: (i + 1) % route.length,
+    mode: i % 2 ? 'walk' : 'sweep', timer: 3 + i * 2, broom: makeBroom(avatar) };
+  npcs.push(avatar);
+}
+let npcSpeechCooldown = 0;
+function updateNPCs(dt, t) {
+  npcSpeechCooldown = Math.max(0, npcSpeechCooldown - dt);
+  for (const a of npcs) {
+    const ai = a.ai;
+    let moving = false;
+    if (ai.mode === 'walk') {
+      const target = ai.route[ai.waypoint];
+      const dx = target.x - a.pos.x, dz = target.z - a.pos.z, distance = Math.hypot(dx, dz);
+      if (distance < 0.12) {
+        ai.waypoint = (ai.waypoint + 1) % ai.route.length;
+        ai.mode = ai.role === 'nun' ? 'sweep' : PAUSE_MODES[(ai.cycle++) % PAUSE_MODES.length];
+        ai.timer = ai.role === 'nun' ? rand(4, 7) : rand(5, 10);
+        a.state = 'stand'; a.faceAltar();
+        if (ai.mode === 'bow') a.bow(3);
+      } else if (!a.busy) {
+        const blocked = (player && Math.hypot(player.pos.x - a.pos.x, player.pos.z - a.pos.z) < 0.85)
+          || [...remotePlayers.values()].some(({ avatar }) => Math.hypot(avatar.pos.x - a.pos.x, avatar.pos.z - a.pos.z) < 0.85);
+        if (!blocked) {
+          const step = Math.min(distance, dt * (ai.role === 'nun' ? 0.9 : 1.25));
+          a.pos.x += dx / distance * step; a.pos.z += dz / distance * step;
+          const angle = Math.atan2(dx, dz) - a.root.rotation.y;
+          a.root.rotation.y += Math.atan2(Math.sin(angle), Math.cos(angle)) * Math.min(1, dt * 8);
+          moving = true;
+        }
+      }
+    } else {
+      ai.timer -= dt;
+      if (ai.timer <= 0 && !a.busy) { ai.mode = 'walk'; a.meditating = false; }
+    }
+    a.state = moving ? 'walk' : 'stand';
+    a.meditating = ai.mode === 'meditate';
+    a.update(dt, t, moving);
+    if (ai.mode === 'chant') {
+      ai.chantT -= dt;
+      if (ai.chantT <= 0 && npcSpeechCooldown <= 0 && camera.position.distanceToSquared(a.pos) < 160) {
+        floatText(pick(NPC_CHANTS), a.pos.x, 2.55, a.pos.z, '#e4ddbc', 0.6);
+        ai.chantT = rand(4, 7); npcSpeechCooldown = 1.2;
+      }
+    }
+    if (ai.role === 'nun') {
+      const sweeping = ai.mode === 'sweep', sway = Math.sin(t * 4 + a.phase);
+      ai.broom.rotation.z = -0.22 + (sweeping ? sway * 0.28 : 0);
+      ai.broom.rotation.y = sweeping ? sway * 0.45 : 0;
+      ai.broom.position.x = 0.48 + (sweeping ? sway * 0.12 : 0);
+      if (sweeping) { a.pivot.rotation.x = 0.12; a.pivot.rotation.z = sway * 0.035; }
+    }
+    a.tag.visible = camera.position.distanceToSquared(a.pos) < 200;
+  }
+}
+
 /* ---------------- Camera ---------------- */
 const camTarget = new THREE.Vector3();
 function updateCamera(dt) {
@@ -1153,6 +1315,7 @@ function loop() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   if (player) updatePlayer(dt, t);
   updateRoomPlayers(dt, t);
+  updateNPCs(dt, t);
   updateFeed(dt);
   // flames & lights
   for (const f of flames) { f.scale.set(1, 0.85 + Math.random() * 0.3, 1); }
@@ -1187,4 +1350,4 @@ renderProfile(); renderBeads();
 loop();
 
 // expose for debugging
-window.__chuaha = { scene, player: () => player, remotePlayers, room, ACTIONS, cam };
+window.__chuaha = { scene, player: () => player, remotePlayers, room, npcs, ACTIONS, cam };

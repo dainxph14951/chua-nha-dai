@@ -8,8 +8,11 @@
 - 🧘 **Thiền**: ngồi bồ đoàn, quanh người có vầng hào quang
 - 🪷 **Dâng lễ**: hoa sen, mâm quả, hương, nến hiện lên bàn thờ
 - 🎋 **Cầu duyên**: viết sớ khấn, xin quẻ duyên (14 quẻ), gieo âm dương
+- 💼 **Quẻ công việc**: chọn tab Công việc trong mục Cầu duyên, rút một trong 30 quẻ có thơ, lời giải, gợi ý hành động và thời điểm, có nút sao chép kết quả.
 
-Làm thêm việc gì cũng được cộng công đức. Đủ công đức thì thăng cấp "Hạt sen · bậc N". Mọi người kết nối cùng máy chủ đều vào **một phòng chung**: thấy nhân vật của nhau, đồng bộ vị trí, trang phục, trạng thái ngồi/lạy/thiền và trò chuyện qua nút 💬. Số người trong chùa là số kết nối thật, không có bot mô phỏng.
+Rút quẻ cầu duyên yêu cầu **đủ 50 công đức**, không trừ điểm. Khi chưa đủ, bấm tab Cầu duyên hoặc nút rút quẻ sẽ hiện thông báo ngang màn hình, kèm điểm hiện có và điểm còn thiếu. Khấn và quẻ công việc vẫn dùng được khi chưa đủ 50 công đức.
+
+Làm thêm việc gì cũng được cộng công đức. Đủ công đức thì thăng cấp "Hạt sen · bậc N". Mọi người kết nối cùng máy chủ đều vào **một phòng chung**: thấy nhân vật của nhau, đồng bộ vị trí, trang phục, trạng thái ngồi/lạy/thiền và trò chuyện qua nút 💬. Số người trong chùa là số kết nối thật. Có thêm 10 phật tử mô phỏng đi lại, tụng kinh, khấn bái và 3 ni cô cầm chổi quét dọn; họ có nhãn “Mô phỏng”, không tham gia chat, không tính vào số online hay bảng công đức. Các nhân vật mô phỏng hoạt động riêng trên từng trình duyệt.
 
 **Bảng công đức** nằm bên trái cạnh ban thờ: xếp hạng 5 người đang trong phòng có công đức cao nhất, hiển thị tên và số công đức. Bảng tự cập nhật khi điểm thay đổi hoặc có người vào/rời phòng; dòng của bạn được tô sáng nếu vào top 5. Công đức vẫn lấy từ dữ liệu lưu trên trình duyệt, chưa có xác thực chống gian lận điểm.
 

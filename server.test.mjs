@@ -107,7 +107,7 @@ test('shared room: presence, state, chat, reconnect, validation and public asset
   assert.equal((await fetch(`${base}/api/join`, { method: 'POST', headers: { Origin: 'https://other.example' }, body: '{}' })).status, 403);
   assert.equal((await fetch(`${base}/api/join`, { method: 'POST', body: '[]' })).status, 400);
   assert.equal((await post('join', { name: 'a'.repeat(5000) })).status, 400);
-  for (const asset of ['/', '/game.js', '/room.js', '/style.css', '/lib/three.module.js']) {
+  for (const asset of ['/', '/game.js', '/room.js', '/work-fortunes.js', '/style.css', '/lib/three.module.js']) {
     assert.equal((await fetch(base + asset)).status, 200);
   }
   for (const secret of ['/.git/config', '/server.mjs', '/package.json', '/lib/../server.mjs']) {

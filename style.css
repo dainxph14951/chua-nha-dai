@@ -22,6 +22,7 @@ button{font:inherit;cursor:pointer}
 #title h1{font-family:"Noto Serif",serif;font-size:20px;color:var(--gold2);text-shadow:0 2px 8px rgba(0,0,0,.7)}
 #title .on{font-size:12px;color:#cfe;margin-top:2px;text-shadow:0 1px 4px #000}
 #title .on b{color:#5fe08a}
+.npc-note{font-size:10px;color:#d9bc91;margin-top:3px;text-shadow:0 1px 4px #000}
 #roomStatus{font-size:11px;color:var(--gold2);margin-top:3px;text-shadow:0 1px 4px #000}
 #roomStatus[data-status="offline"]{color:#ffb5a8}
 #roomStatus[data-status="connected"]{color:#b6f2cd}
@@ -68,6 +69,9 @@ button{font:inherit;cursor:pointer}
 
 #toast{left:50%;top:18%;transform:translate(-50%,-20px);background:rgba(30,12,14,.9);border:1px solid var(--gold);color:var(--gold2);padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap}
 #toast.show{opacity:1;transform:translate(-50%,0)}
+#meritNotice{position:fixed;left:0;right:0;top:40%;z-index:40;padding:18px 24px;border-top:2px solid var(--gold);border-bottom:2px solid var(--gold);background:rgba(72,20,24,.97);color:var(--gold2);font-weight:700;font-size:clamp(14px,2.5vw,20px);line-height:1.6;text-align:center;box-shadow:0 8px 32px #0008;pointer-events:none}
+#meritNotice[hidden]{display:none}
+.btn:disabled{opacity:.6;cursor:wait}
 
 /* Modals */
 .modal{position:fixed;inset:0;background:rgba(10,4,6,.6);display:none;place-items:center;z-index:20;padding:16px;backdrop-filter:blur(3px)}

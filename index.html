@@ -30,6 +30,7 @@
 <div class="hud" id="title" style="pointer-events:none">
   <h1>Chùa Hà · Đại Hùng Bảo Điện</h1>
   <div class="on"><b>●</b> <span id="online">—</span> người trong chùa</div>
+  <div class="npc-note">Có phật tử và ni cô mô phỏng sinh hoạt trong chùa</div>
   <div id="roomStatus" role="status">Vào chùa để kết nối phòng chung</div>
   <div id="feed">🪷 Chào mừng thập phương về chùa Hà cầu duyên</div>
 </div>
@@ -71,6 +72,7 @@
 </div>
 <div class="hud" id="medi">🧘 Đang thiền · <span id="mediT">0:00</span><br><small style="font-size:12px;opacity:.8">Di chuyển để kết thúc</small></div>
 <div class="hud" id="toast"></div>
+<div id="meritNotice" role="alert" aria-atomic="true" hidden></div>
 
 <!-- Start -->
 <div class="modal show" id="start">
@@ -108,8 +110,8 @@
 <div class="modal" id="mQue">
   <div class="card">
     <button class="x" data-close>✕</button>
-    <h2>Cầu duyên chùa Hà</h2>
-    <div class="tabs"><button class="tab on" data-t="pray">🙏 Khấn</button><button class="tab" data-t="que">🎋 Xin quẻ</button></div>
+    <h2>Khấn và xin quẻ chùa Hà</h2>
+    <div class="tabs"><button class="tab on" data-t="pray">🙏 Khấn</button><button class="tab" data-t="que">🎋 Cầu duyên</button><button class="tab" data-t="work">💼 Công việc</button></div>
     <div id="tPray">
       <div class="row2">
         <div><label for="qName">Tín chủ</label><input id="qName" placeholder="Tên bạn"></div>
@@ -123,7 +125,7 @@
       <div id="prayOut"></div>
     </div>
     <div id="tQue" style="display:none">
-      <div class="sub">Chắp tay, nghĩ về điều mình cầu, rồi lắc ống xăm.</div>
+      <div class="sub">Chắp tay, nghĩ về điều mình cầu, rồi lắc ống xăm. Cần đủ 50 công đức để rút quẻ cầu duyên; không trừ công đức.</div>
       <div style="text-align:center"><button class="btn" id="doShake">🎋 Lắc ống xăm</button></div>
       <div id="queOut"></div>
       <div id="coinBox" style="display:none;text-align:center;margin-top:14px">
@@ -132,6 +134,12 @@
         <div id="coinMsg" style="margin-top:8px;font-weight:700"></div>
         <button class="btn ghost" id="doCoin">🪙 Gieo âm dương</button>
       </div>
+    </div>
+    <div id="tWork" style="display:none">
+      <div class="sub">Nghĩ về điều bạn đang băn khoăn trong công việc rồi rút một trong 30 quẻ. Không yêu cầu công đức.</div>
+      <div style="text-align:center"><button class="btn" id="doWorkShake">💼 Rút quẻ công việc</button></div>
+      <div id="workQueOut" aria-live="polite"></div>
+      <div class="note">Quẻ mang tính giải trí và gợi mở suy ngẫm. Hãy cân nhắc hoàn cảnh thực tế khi quyết định công việc.</div>
     </div>
   </div>
 </div>
@@ -147,11 +155,13 @@
       <li><b>Ngồi:</b> lại gần bồ đoàn rồi bấm "Ngồi xuống" (phím E).</li>
       <li><b>Trò chuyện:</b> bấm 💬 để gửi lời nhắn cho mọi người trong phòng chung. Vị trí, trang phục, lạy và thiền được đồng bộ trực tiếp.</li>
       <li><b>Bảng công đức:</b> bên trái cạnh ban thờ, hiển thị top 5 người đang trong phòng có công đức cao nhất.</li>
+      <li><b>Nhân vật mô phỏng:</b> có phật tử đi lại, tụng kinh, khấn bái và ni cô cầm chổi quét dọn. Nhãn dưới tên ghi rõ Mô phỏng; các nhân vật này không tính vào số người online hay bảng công đức.</li>
       <li><b>Lạy Phật:</b> 3 lạy, +3 công đức.</li>
       <li><b>Tràng hạt:</b> bấm "Lần hạt" (phím Space). Tròn 108 hạt được +20 công đức.</li>
       <li><b>Tụng kinh:</b> gõ mõ niệm "Nam mô A Di Đà Phật".</li>
       <li><b>Thiền:</b> ngồi yên, cứ 10 giây được +1 công đức.</li>
       <li><b>Dâng lễ</b> và <b>Cầu duyên:</b> khấn, xin quẻ, gieo âm dương.</li>
+      <li><b>Quẻ cầu duyên:</b> cần đủ 50 công đức, không trừ điểm. <b>Quẻ công việc:</b> chọn tab Công việc trong mục Cầu duyên, có 30 quẻ và không yêu cầu điểm.</li>
     </ul>
     <div class="note">Tất cả người chơi kết nối cùng máy chủ sẽ ở chung một phòng. Lời nhắn được chia sẻ công khai trong phòng, hãy trò chuyện lịch sự. Công đức chỉ lưu trên trình duyệt của bạn. Trang mang tính giải trí. Muốn linh hơn thì ghé chùa Hà thật ở phố Chùa Hà, Cầu Giấy, Hà Nội 🙏</div>
   </div>
