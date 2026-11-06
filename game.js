@@ -3,6 +3,7 @@ import { RoomEnvironment } from './lib/RoomEnvironment.js';
 import { SharedRoom, getTopMerit } from './room.js';
 import { WORK_FORTUNES } from './work-fortunes.js';
 import { MILESTONES, milestoneTier, bowCooldownMs } from './milestones.js';
+import { setupBoardGames, pieceLabel } from './board-ui.js';
 
 /* =========================================================
    Chùa Hà Online 3D — game.js
@@ -76,7 +77,7 @@ const M = {
 };
 
 /* ---------------- Hall ---------------- */
-const HALL = { minX: -13.2, maxX: 13.2, minZ: -13.6, maxZ: 15.2 };
+const HALL = { minX: -13.2, maxX: 13.2, minZ: -13.6, maxZ: 37 };
 
 // floor
 const floorTex = canvasTex(512, 512, (x, w, h) => {
@@ -118,6 +119,7 @@ mesh(new THREE.BoxGeometry(10, 8.5, 0.4), fw, 9, 4.25, 16.4);
 mesh(new THREE.BoxGeometry(8, 3.5, 0.4), fw, 0, 6.75, 16.4);
 const doorGlow = mesh(new THREE.PlaneGeometry(8, 5), new THREE.MeshBasicMaterial({ color: 0x8a6a55 }), 0, 2.5, 16.7);
 doorGlow.rotation.y = Math.PI;
+doorGlow.visible = false; // The doorway now opens onto the real courtyard.
 // steps at entrance
 for (let i = 0; i < 3; i++) mesh(new THREE.BoxGeometry(9, 0.15, 0.6), M.stone, 0, -0.05 - i * 0.15, 16 + i * 0.6);
 
@@ -279,6 +281,74 @@ mesh(new THREE.BoxGeometry(2.1, 1.1, 0.08), M.wood, 0, 1.9, 0, sign);
 sign.rotation.y = -0.35;
 sign.position.set(3.4, 0, -15.4);
 PILLARS.push({ x: 7.2, z: -14.6, r: 0.4 }, { x: 4.4, z: -15.2, r: 0.7 }, { x: -5.2, z: -15.4, r: 0.9 });
+
+/* ---------------- Khuôn viên ba bàn cờ ---------------- */
+const COURT_TABLES = [{ id: 'xiangqi', title: 'Cờ tướng', x: -8 }, { id: 'chess', title: 'Cờ vua', x: 0 }, { id: 'caro', title: 'Ca-rô', x: 8 }];
+const courtTableTextures = new Map(), courtTableMeshes = [];
+const courtyard = new THREE.Group(); courtyard.name = 'boardGameGarden'; scene.add(courtyard);
+const paving = canvasTex(256, 256, (ctx, w, h) => {
+  ctx.fillStyle = '#7a7364'; ctx.fillRect(0, 0, w, h); ctx.strokeStyle = '#5b564b'; ctx.lineWidth = 3;
+  ctx.strokeRect(0, 0, w, h); ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+});
+paving.wrapS = paving.wrapT = THREE.RepeatWrapping; paving.repeat.set(7, 6);
+const yardFloor = mesh(new THREE.PlaneGeometry(28, 22), mat(0xffffff, { map: paving }), 0, 0.006, 27, courtyard); yardFloor.rotation.x = -Math.PI / 2;
+for (const x of [-14, 14]) mesh(new THREE.BoxGeometry(0.25, 1.1, 22), M.stone, x, 0.55, 27, courtyard);
+mesh(new THREE.BoxGeometry(28, 1.1, 0.25), M.stone, 0, 0.55, 38, courtyard);
+const treeMat = mat(0x264c36), trunkMat = mat(0x61432d);
+for (const x of [-12, 12]) for (const z of [20, 34.5]) {
+  mesh(new THREE.CylinderGeometry(0.15, 0.24, 3.2, 9), trunkMat, x, 1.6, z, courtyard);
+  const leaves = mesh(new THREE.SphereGeometry(1.5, 12, 8), treeMat, x, 3.6, z, courtyard); leaves.scale.y = 1.2;
+  mesh(new THREE.CylinderGeometry(0.7, 0.85, 0.45, 12), M.stone, x, 0.22, z, courtyard);
+  PILLARS.push({ x, z, r: 0.9 });
+}
+const yardLight = new THREE.PointLight(0xffd3a1, 55, 28, 1.5); yardLight.position.set(0, 6, 27); courtyard.add(yardLight);
+const gardenSign = nameSprite('VƯỜN CỜ CHÙA HÀ', '#ffe2a3', '3 bàn · Mỗi bàn 2 người');
+gardenSign.position.set(0, 3.4, 34.5); gardenSign.scale.set(8, 2, 1); courtyard.add(gardenSign);
+for (const definition of COURT_TABLES) {
+  const x = definition.x;
+  for (const dx of [-1.25, 1.25]) for (const dz of [-1.25, 1.25]) mesh(new THREE.BoxGeometry(0.22, 0.85, 0.22), M.wood, x + dx, 0.42, 27 + dz, courtyard);
+  mesh(new THREE.BoxGeometry(3.6, 0.18, 3.6), M.wood, x, 0.9, 27, courtyard);
+  for (const z of [24.4, 29.6]) {
+    mesh(new THREE.CylinderGeometry(0.55, 0.57, 0.45, 16), M.stone, x, 0.225, z, courtyard);
+    mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.1, 16), M.redDark, x, 0.5, z, courtyard);
+  }
+  const boardCanvas = document.createElement('canvas'); boardCanvas.width = 640; boardCanvas.height = 640;
+  const texture = new THREE.CanvasTexture(boardCanvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
+  const top = mesh(new THREE.PlaneGeometry(3.15, 3.15), new THREE.MeshBasicMaterial({ map: texture }), x, 1.001, 27, courtyard);
+  top.rotation.x = -Math.PI / 2; top.userData.tableId = definition.id; courtTableMeshes.push(top);
+  const label = nameSprite(definition.title, '#ffe2a3', '0 / 2 người · Chọn bàn để chơi'); label.position.set(x, 2.7, 27); label.scale.set(3.6, 0.9, 1); courtyard.add(label);
+  courtTableTextures.set(definition.id, { canvas: boardCanvas, texture, label, version: -1 });
+  PILLARS.push({ x, z: 27, r: 2.1 });
+  const ctx = boardCanvas.getContext('2d'); ctx.fillStyle = '#d7b879'; ctx.fillRect(0, 0, 640, 640);
+  ctx.fillStyle = '#663c22'; ctx.font = 'bold 70px serif'; ctx.textAlign = 'center'; ctx.fillText(definition.title, 320, 320);
+}
+function updateCourtTables(tables) {
+  for (const table of tables) {
+    const view = courtTableTextures.get(table.id); if (!view || view.version === table.version) continue;
+    view.version = table.version;
+    const ctx = view.canvas.getContext('2d'), size = 600, pad = 20, cw = size / table.cols, ch = size / table.rows;
+    ctx.fillStyle = '#7c542a'; ctx.fillRect(0, 0, 640, 640);
+    for (let row = 0; row < table.rows; row++) for (let col = 0; col < table.cols; col++) {
+      const index = row * table.cols + col, piece = table.board[index], x = pad + col * cw, y = pad + row * ch;
+      ctx.fillStyle = table.id === 'chess' && (row + col) % 2 ? '#8f6c4a' : '#efddb5'; ctx.fillRect(x, y, cw, ch);
+      ctx.strokeStyle = '#b69b72'; ctx.lineWidth = 1; ctx.strokeRect(x, y, cw, ch);
+      if (piece) {
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        if (table.id === 'xiangqi') {
+          ctx.beginPath(); ctx.arc(x + cw / 2, y + ch / 2, Math.min(cw, ch) * 0.42, 0, Math.PI * 2); ctx.fillStyle = '#fff0ce'; ctx.fill();
+          ctx.strokeStyle = piece[0] === 'r' ? '#9d2029' : '#25221c'; ctx.stroke();
+        }
+        ctx.fillStyle = piece[0] === 'r' || piece === 'X' ? '#a21d24' : piece[0] === 'w' ? '#fffdf2' : '#25221c';
+        ctx.font = `bold ${Math.min(cw, ch) * 0.76}px "Apple Symbols", serif`;
+        if (piece[0] === 'w') { ctx.lineWidth = 2; ctx.strokeStyle = '#382716'; ctx.strokeText(pieceLabel(table.id, piece), x + cw / 2, y + ch / 2); }
+        ctx.fillText(pieceLabel(table.id, piece), x + cw / 2, y + ch / 2);
+      }
+    }
+    view.texture.needsUpdate = true;
+    const tag = nameSprite(table.title, '#ffe2a3', `${table.seats.filter(Boolean).length} / 2 người · ${table.status === 'playing' ? 'Đang chơi' : table.status === 'finished' ? 'Kết thúc' : 'Chờ người chơi'}`);
+    view.label.material.map.dispose(); view.label.material.dispose(); view.label.material = tag.material;
+  }
+}
 
 /* ---------------- Bảng công đức cạnh trái ban thờ ---------------- */
 const meritBoard = new THREE.Group();
@@ -510,6 +580,7 @@ function lantern(x, y, z) {
   lanterns.push(g);
 }
 for (const x of [-7.4, 7.4]) for (const z of [-9, -2, 5, 12]) lantern(x, 5.4, z);
+for (const x of [-12, 12]) for (const z of [20, 34.5]) lantern(x, 3.3, z);
 
 /* ---------------- Cushions (bồ đoàn) ---------------- */
 const CUSHIONS = [];
@@ -823,13 +894,21 @@ function renderProfile() {
   renderMilestoneBoard(P.rewardMerit);
   renderRewards();
 }
-let meritRevision = -1;
+let meritRevision = -1, meritLockReadyAt = 0, meritBlockReason = '';
+function updateMeritLockView() {
+  if (!P.blocked) return;
+  const seconds = Math.max(0, Math.ceil((meritLockReadyAt - performance.now()) / 1000));
+  $('#pSecurity').textContent = seconds > 0 ? `⚠ Tạm khóa · ${seconds}s` : '⚠ Đang mở khóa…';
+  $('#integrityMessage').textContent = `Phát hiện tích công đức bất thường. Công đức và phần thưởng đã về 0. Tạm khóa tích điểm ${seconds > 0 ? `còn ${seconds} giây` : 'đang chờ máy chủ mở lại'}. Hết 1 phút bạn được tích lại từ 0. ${meritBlockReason}`;
+}
 function applyMeritStatus(status, live = true) {
   if (live && status.revision < meritRevision) return;
   meritRevision = status.revision;
   const before = P.merit, previousEarned = P.rewardMerit, wasBlocked = P.blocked;
   P.merit = status.merit; P.rewardMerit = status.rewardMerit;
   P.beads = status.beads; P.rounds = status.rounds; P.blocked = status.blocked;
+  meritLockReadyAt = performance.now() + (status.blockRemainingMs ?? 60000);
+  meritBlockReason = status.reason || '';
   offerReadyAt = performance.now() + (status.offerWaitMs ?? 0);
   bowReadyAt = performance.now() + (status.bowWaitMs ?? 0);
   if (!live || status.blocked) actionReadyAt.delete('bow');
@@ -841,18 +920,19 @@ function applyMeritStatus(status, live = true) {
   }
   if (player && (player.name !== P.name || player.level !== levelOf(P.merit))) player.setName(P.name, levelOf(P.merit));
   renderProfile(); renderBeads(); syncStart();
-  $('#pSecurity').textContent = P.blocked ? '⚠ Đã khóa tích công đức' : '';
+  $('#pSecurity').textContent = '';
   document.body.classList.toggle('merit-blocked', P.blocked);
   if (P.blocked) {
     stopAll(); beadAuto = false; $('#beadAuto').classList.remove('on');
     if (player) { player.pendingMeritBow = false; player.bowQueue = 0; }
     $('#milestoneCelebration').hidden = true;
     if (!wasBlocked || !live) {
-      $('#integrityMessage').textContent = 'Phát hiện tích công đức bất thường. Công đức và phần thưởng đã được đưa về 0. Bạn đã bị khóa tích công đức; tải lại trang hoặc đổi tên không gỡ khóa. ' + (status.reason || '');
       $('#integrityBanner').hidden = false;
     }
+    updateMeritLockView();
     return;
   }
+  if (wasBlocked) { $('#integrityBanner').hidden = true; toast('Đã hết 1 phút tạm khóa. Bạn có thể tích công đức lại từ 0.'); }
   if (live && P.merit > before && player) {
     floatText('+' + (P.merit - before) + ' công đức', player.pos.x, player.pos.y + 2.6, player.pos.z, '#9cf5b5', 0.7);
     if (levelOf(P.merit) > levelOf(before)) toast(`🪷 Thăng cấp: Hạt sen · bậc ${levelOf(P.merit)}`);
@@ -871,7 +951,7 @@ function applyMeritStatus(status, live = true) {
 }
 $('#integrityClose').onclick = () => { $('#integrityBanner').hidden = true; };
 async function addMerit(action) {
-  if (P.blocked) { toast('⚠ Đã khóa tích công đức do hoạt động bất thường.'); return null; }
+  if (P.blocked) { toast('⚠ Đang tạm khóa tích điểm. Hết 1 phút sẽ tự mở lại.'); return null; }
   if (!room.ready) { toast('Chờ kết nối phòng chung để tích công đức.'); return null; }
   try { return await room.post('merit', { action }); }
   catch (error) { if (!P.blocked) toast(error.message); return null; }
@@ -1081,13 +1161,52 @@ const room = new SharedRoom({
   onChat: appendChat,
   onRitual: renderRitual,
   onMerit: applyMeritStatus,
+  onTables: (tables, reset) => boardGames.receive(tables, reset),
   onStatus: status => {
     $('#roomStatus').textContent = status === 'outdated' ? 'Có bản mới · Hãy tải lại trang' : status === 'connected' ? 'Phòng chung · Đã kết nối' : status === 'connecting' ? 'Đang vào phòng chung…' : 'Mất kết nối · Đang thử lại…';
     $('#roomStatus').dataset.status = status;
     $('#chatSend').disabled = status !== 'connected';
+    boardGames?.refresh();
     if (status !== 'connected') { $('#online').textContent = '—'; clearRemotePlayers(); renderMeritBoard([], '', status); }
   },
 });
+const boardGames = setupBoardGames({
+  getRoom: () => room,
+  onUpdate: updateCourtTables,
+  onVisit: () => {
+    if (!player) { toast('Vào chùa trước để ra khuôn viên nhé.'); return; }
+    stopAll(); if (player.cushion) player.stand();
+    player.pos.set(0, 0, 20.5); player.root.rotation.y = 0;
+    cam.yaw = Math.PI; cam.pitch = 0.58; cam.dist = 9;
+  },
+  onSeat: (table, seat) => {
+    if (!player) return;
+    stopAll(); if (beadMode) ACTIONS.beads(); if (player.cushion) player.stand();
+    player.sit({ x: table.x, z: 27 + (seat === 0 ? 2.6 : -2.6), taken: null, isGameSeat: true });
+    player.faceTo(table.x, 27);
+    cam.yaw = seat === 0 ? 0 : Math.PI; cam.pitch = 0.8; cam.dist = 7.5;
+  },
+  onLeave: () => {
+    if (player?.cushion?.isGameSeat) { const side = Math.sign(player.pos.z - 27) || 1; player.stand(); player.pos.z = 27 + side * 3.3; }
+  },
+});
+const tableRaycaster = new THREE.Raycaster(), tablePointer = new THREE.Vector2();
+let tablePress = null;
+canvas.addEventListener('pointerdown', e => { tablePress = { id: e.pointerId, x: e.clientX, y: e.clientY }; });
+canvas.addEventListener('pointercancel', () => { tablePress = null; });
+canvas.addEventListener('pointerup', e => {
+  const start = tablePress; tablePress = null;
+  if (!player || !start || start.id !== e.pointerId || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) return;
+  const rect = canvas.getBoundingClientRect();
+  tablePointer.set((e.clientX - rect.left) / rect.width * 2 - 1, 1 - (e.clientY - rect.top) / rect.height * 2);
+  tableRaycaster.setFromCamera(tablePointer, camera);
+  const hit = tableRaycaster.intersectObjects(courtTableMeshes)[0];
+  if (hit && Math.hypot(player.pos.x - hit.point.x, player.pos.z - hit.point.z) < 7) boardGames.open(hit.object.userData.tableId);
+});
+$('#tablePlayBtn').onclick = () => {
+  const closest = [...COURT_TABLES].sort((a, b) => Math.hypot(a.x - player.pos.x, 27 - player.pos.z) - Math.hypot(b.x - player.pos.x, 27 - player.pos.z))[0];
+  boardGames.open(closest.id);
+};
 function toggleChat(open) {
   $('#chat').hidden = !open;
   $('#bChat').setAttribute('aria-expanded', String(open));
@@ -1114,6 +1233,7 @@ $('#chatForm').onsubmit = async event => {
 /* ---------------- Input ---------------- */
 const keys = {};
 addEventListener('keydown', (e) => {
+  if (e.target.closest?.('#mBoardGames')) return;
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   keys[e.code] = true;
   if (e.code === 'Space') { e.preventDefault(); if (beadMode) beadTap(); }
@@ -1196,6 +1316,7 @@ function showButtonWait(button, disabled, wait = 0, busy = false, canStop = fals
   button.setAttribute('aria-label', button.title);
 }
 function updateActionButtons() {
+  updateMeritLockView();
   for (const button of $$('.act')) {
     const action = button.dataset.a, active = isActionActive(action), wait = actionWait(action), busy = actionBusy(action);
     showButtonWait(button, !player || (!active && (wait > 0 || busy)), active ? 0 : wait, busy, active);
@@ -1482,6 +1603,8 @@ function updatePlayer(dt, t) {
       const sp = 3.4 * mag * dt;
       let nx = player.pos.x + mx / l * sp, nz = player.pos.z + mz / l * sp;
       nx = clamp(nx, HALL.minX, HALL.maxX); nz = clamp(nz, HALL.minZ, HALL.maxZ);
+      // Đi qua cửa chính để ra/vào khuôn viên, không xuyên qua hai cánh tường.
+      if (Math.abs(nx) > 3.5 && ((player.pos.z <= 16.4 && nz > 16) || (player.pos.z > 16.4 && nz < 16.8))) nz = player.pos.z <= 16.4 ? 16 : 16.8;
       for (const p of PILLARS) {
         const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz), r = p.r + 0.35;
         if (d < r) { nx = p.x + dx / d * r; nz = p.z + dz / d * r; }
@@ -1653,7 +1776,7 @@ function updateCamera(dt) {
   let x = camTarget.x + Math.sin(cam.yaw) * cp * cam.dist;
   let y = camTarget.y + Math.sin(cam.pitch) * cam.dist;
   let z = camTarget.z + Math.cos(cam.yaw) * cp * cam.dist;
-  x = clamp(x, -13.6, 13.6); z = clamp(z, -22, 16); y = clamp(y, 0.6, 7.8);
+  x = clamp(x, -13.6, 13.6); z = clamp(z, -22, 41); y = clamp(y, 0.6, player.pos.z > 17 ? 10 : 7.8);
   camera.position.set(x, y, z);
   camera.lookAt(camTarget);
 }
@@ -1670,6 +1793,7 @@ const clock = new THREE.Clock();
 function loop() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   if (player) updatePlayer(dt, t);
+  $('#tablePlayBtn').hidden = !player || player.pos.z < 21 || !COURT_TABLES.some(table => Math.hypot(table.x - player.pos.x, 27 - player.pos.z) < 4.5);
   updateRoomPlayers(dt, t);
   updateNPCs(dt, t);
   updateRituals(dt, t);
@@ -1707,4 +1831,4 @@ renderProfile(); renderBeads();
 loop();
 
 // expose for debugging
-window.__chuaha = { scene, player: () => player, remotePlayers, room, npcs, ACTIONS, cam };
+window.__chuaha = { scene, player: () => player, remotePlayers, room, npcs, ACTIONS, cam, boardGames };

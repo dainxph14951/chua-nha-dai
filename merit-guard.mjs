@@ -1,6 +1,7 @@
 // Only this module decides how many points an activity earns.
 import { bowCooldownMs } from './milestones.js';
 export const MERIT_LIMIT_PER_MINUTE = 180;
+export const MERIT_LOCK_MS = 60000;
 const RULES = {
   bow: { points: 3, interval: 4000, initialWait: true },
   bead: { points: 0, interval: 150 },
@@ -13,33 +14,50 @@ const RULES = {
 const dayInVietnam = time => new Date(time + 7 * 3600000).toISOString().slice(0, 10);
 
 export function createMeritAccount(now) {
-  return { merit: 0, rewardMerit: 0, beads: 0, rounds: 0, blocked: false, reason: '',
+  return { merit: 0, rewardMerit: 0, beads: 0, rounds: 0, blocked: false, blockedUntil: 0, reason: '',
     revision: 0, createdAt: now, last: {}, earnings: [], violations: [], prayerDay: '', fortuneDay: '', fortuneCount: 0 };
 }
 
 export function meritStatus(account, now) {
   return { merit: account.merit, rewardMerit: account.rewardMerit, beads: account.beads,
     rounds: account.rounds, blocked: account.blocked, reason: account.reason, revision: account.revision,
+    blockedUntil: account.blockedUntil ?? 0,
+    blockRemainingMs: account.blocked ? Math.max(0, (account.blockedUntil ?? now + MERIT_LOCK_MS) - now) : 0,
     offerWaitMs: Math.max(0, (account.last.offer ?? now - 10000) + 10000 - now),
     bowWaitMs: account.last.bow === undefined ? 0 : Math.max(0, account.last.bow + bowCooldownMs(account.merit) - now),
     bowCooldownMs: bowCooldownMs(account.merit) };
 }
 
-export function lockMerit(account, reason) {
+export function refreshMeritLock(account, now) {
+  if (!account.blocked) return false;
+  // Existing permanent locks migrate to one minute from their first use of this version.
+  if (!Number.isFinite(account.blockedUntil) || account.blockedUntil <= 0) {
+    account.blockedUntil = now + MERIT_LOCK_MS; account.revision++; return true;
+  }
+  if (now < account.blockedUntil) return false;
+  account.blocked = false; account.blockedUntil = 0; account.reason = '';
+  account.violations = []; account.earnings = []; account.last = {}; account.revision++;
+  return true;
+}
+
+export function lockMerit(account, reason, now = Date.now()) {
+  refreshMeritLock(account, now);
+  if (account.blocked) return { status: 403, error: 'Tích công đức đang tạm khóa trong 1 phút.', retryAfterMs: Math.max(0, account.blockedUntil - now) };
   account.merit = 0; account.rewardMerit = 0; account.beads = 0; account.rounds = 0;
-  account.blocked = true; account.reason = reason; account.revision++;
-  return { status: 403, error: 'Phát hiện tích công đức bất thường. Công đức đã về 0 và bị khóa tích điểm.' };
+  account.blocked = true; account.blockedUntil = now + MERIT_LOCK_MS; account.reason = reason; account.revision++;
+  return { status: 403, error: 'Phát hiện tích công đức bất thường. Công đức đã về 0 và tạm khóa tích điểm trong 1 phút.', retryAfterMs: MERIT_LOCK_MS };
 }
 
 function tooFast(account, now, wait) {
   account.violations = account.violations.filter(time => now - time < 2000);
   account.violations.push(now);
-  if (account.violations.length >= 12) return lockMerit(account, 'Gửi yêu cầu cộng công đức quá nhanh nhiều lần.');
+  if (account.violations.length >= 12) return lockMerit(account, 'Gửi yêu cầu cộng công đức quá nhanh nhiều lần.', now);
   return { status: 429, error: `Thao tác quá nhanh, chờ ${Math.max(1, Math.ceil(wait / 1000))} giây rồi thử lại.`, retryAfterMs: wait };
 }
 
 export function performMeritAction(account, action, now) {
-  if (account.blocked) return { status: 403, error: 'Tích công đức đã bị khóa do hoạt động bất thường.' };
+  refreshMeritLock(account, now);
+  if (account.blocked) return { status: 403, error: 'Tích công đức đang tạm khóa trong 1 phút.', retryAfterMs: account.blockedUntil - now };
   const rule = Object.hasOwn(RULES, action) ? RULES[action] : null;
   if (!rule) return { status: 400, error: 'Hoạt động tích công đức không hợp lệ.' };
   if (action === 'fortune' && account.merit < 50) return { status: 403, error: 'Cần đủ 50 công đức để rút quẻ cầu duyên.' };
@@ -56,7 +74,7 @@ export function performMeritAction(account, action, now) {
   if (action === 'bead') points = account.beads === 107 ? 20 : 0;
   account.earnings = account.earnings.filter(entry => now - entry.time < 60000);
   if (account.earnings.reduce((sum, entry) => sum + entry.points, 0) + points > MERIT_LIMIT_PER_MINUTE) {
-    return lockMerit(account, `Công đức tăng vượt ${MERIT_LIMIT_PER_MINUTE} điểm trong 60 giây.`);
+    return lockMerit(account, `Công đức tăng vượt ${MERIT_LIMIT_PER_MINUTE} điểm trong 60 giây.`, now);
   }
   account.last[action] = now;
   if (action === 'pray') account.prayerDay = day;

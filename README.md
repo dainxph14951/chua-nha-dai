@@ -27,11 +27,24 @@ Làm thêm việc gì cũng được cộng công đức. Đủ công đức th�
 
 Mở khóa không trừ điểm. Mốc đã đạt và công đức lưu trong sổ máy chủ, gắn với cookie định danh HttpOnly của trình duyệt. Tải lại trang hoặc đổi tên vẫn giữ dữ liệu; xóa cookie/chuyển thiết bị tạo danh tính mới từ 0. Chưa có đăng nhập để khôi phục danh tính cũ. Áo, danh hiệu, hào quang và lời chào được đồng bộ cho người trong phòng. Hoa đăng/lễ đèn hiển thị chung trong 90 giây, giới hạn 20 lễ vật; máy chủ giữ các nghi thức gần nhất để người mới vào vẫn thấy, và giới hạn một nghi thức mỗi 10 giây cho mỗi phiên. Lời nguyện đi kèm hoa đăng là công khai trong phòng.
 
+## Khuôn viên chơi cờ
+
+Đi qua cửa chính ra sân phía trước, hoặc bấm **♟ → Ra khuôn viên**. Có đúng 3 bàn, mỗi bàn dành cho 2 người thật:
+
+- **Cờ tướng:** Đỏ đi trước; máy chủ kiểm tra nước đi, cản mã/cản tượng, pháo cần ngòi khi ăn, giới hạn cung/sông, cấm lộ mặt tướng và xử thắng khi đối thủ hết nước hợp lệ. Hòa khi lặp thế ba lần hoặc 120 lượt không bắt quân; bên chiếu liên tục lặp thế bị xử thua. Bản giải trí chưa phân xử đuổi quân liên tục theo luật thi đấu WXF.
+- **Cờ vua:** Trắng đi trước; có chiếu/chiếu hết, nhập thành, bắt tốt qua đường, lựa chọn phong cấp và các trường hợp hòa, dùng [chess.js](https://github.com/jhlywa/chess.js) trên máy chủ.
+- **Ca-rô:** bàn 15×15, X đi trước; từ 5 quân cùng bên liên tiếp theo hàng/cột/chéo là thắng, không xét chặn hai đầu; bàn đầy thì hòa.
+
+Bấm vào mặt bàn hoặc nút hiện khi đến gần, hay bấm ♟ rồi chọn bàn. Bấm **Ngồi vào bàn** để nhận chỗ; ván chỉ bắt đầu khi đủ 2 người có danh tính khác nhau. Mỗi danh tính chỉ ngồi một bàn; nhiều tab cùng trình duyệt không thể đóng cả hai vai. Khi bàn đủ người, người khác vẫn xem được ván nhưng không được đi quân.
+
+Chọn quân rồi chọn ô sáng để đi; ca-rô chỉ cần chọn ô trống. Máy chủ kiểm tra lượt và nước đi, đồng bộ bàn cờ và các quân trên mặt bàn 3D cho mọi người. Có Xin thua, Rời bàn và Chơi ván mới (cần cả hai đồng ý, đổi bên ở ván mới). Đóng cửa sổ bàn cờ vẫn giữ chỗ. Mất mạng được giữ chỗ 30 giây và tạm dừng ván; quá hạn nhường chỗ, xử thua nếu ván đang chơi. Chơi cờ không cộng hay trừ công đức. Ván cờ được làm mới khi máy chủ khởi động lại.
+
 ## Chạy
 
-Cần **Node.js 20 trở lên**, không cần cài thư viện hay build:
+Cần **Node.js 20 trở lên**, cài phụ thuộc một lần rồi chạy, không cần build:
 
 ```bash
+npm install
 npm start
 # mở http://localhost:8000
 ```
@@ -63,13 +76,13 @@ npm test
 - Tụng kinh: +1, ít nhất 2,5 giây; thiền: +1, ít nhất 9,5 giây.
 - Dâng lễ: +5, cách nhau 10 giây. Giao diện lần hạt tối đa 4 lần/giây, máy chủ kiểm tra từng hạt; đủ 108 hạt mới được +20.
 - Khấn được +5 một lần/ngày và 3 quẻ cầu duyên đầu ngày được +2/quẻ, tính theo ngày Việt Nam. Tải lại trang không làm mới các giới hạn này.
-- Tự gửi tổng điểm giả/số điểm tự chọn hoặc tăng vượt 180 điểm trong 60 giây: đưa công đức, tiến độ và phần thưởng về 0, khóa tích điểm và hiện cảnh báo riêng cho danh tính đó.
-- Một lần thao tác sớm chỉ nhận nhắc chờ, không bị reset. Gửi ít nhất 12 yêu cầu sớm trong 2 giây mới bị khóa do spam. Nhiều tab dùng chung điểm, giới hạn và khóa.
+- Tự gửi tổng điểm giả/số điểm tự chọn hoặc tăng vượt 180 điểm trong 60 giây: đưa công đức, tiến độ và phần thưởng về 0, tạm khóa tích điểm 60 giây và hiện cảnh báo đếm ngược riêng cho danh tính đó. Hết hạn, máy chủ tự mở lại để tích từ 0; không khôi phục điểm hay phần thưởng đã bị thu hồi.
+- Một lần thao tác sớm chỉ nhận nhắc chờ, không bị reset. Gửi ít nhất 12 yêu cầu sớm trong 2 giây mới bị khóa do spam. Nhiều tab dùng chung điểm, giới hạn và thời hạn khóa. Bấm trong lúc bị khóa không gia hạn thêm; tải lại trang/khởi động lại với cùng sổ dữ liệu giữ nguyên mốc hết hạn. Khóa cũ chưa có thời hạn được chuyển thành 60 giây từ lần sử dụng đầu tiên của bản mới.
 - Khi chuyển từ bản cũ, **toàn bộ điểm localStorage chưa xác thực không được nhập lại**. Danh tính mới bắt đầu từ 0; không thể kết luận điểm cũ nào là hợp lệ chỉ từ con số trong ảnh.
 
 Sổ dữ liệu mặc định là `.data/merit-ledger.json`, ghi nguyên tử, không đưa vào Git và không được phục vụ qua HTTP. Có thể đặt `MERIT_DATA_FILE` trỏ tới tệp trên ổ đĩa lưu trữ bền vững. Điểm và trạng thái khóa được khôi phục khi khởi động lại với cùng tệp.
 
-**Render Free không có ổ đĩa bền vững:** tệp dữ liệu có thể mất khi deploy, restart hoặc ngủ; khi đó điểm và khóa cũ không thể phục hồi. Muốn giữ lâu dài trên hosting, cần chuyển sổ dữ liệu sang cơ sở dữ liệu bền vững hoặc gắn ổ đĩa persistent và đặt `MERIT_DATA_FILE`. Không thể khóa vĩnh viễn một con người khi chưa có đăng nhập: xóa cookie tạo danh tính mới, nhưng không khôi phục điểm cũ và vẫn chịu các giới hạn tốc độ của máy chủ.
+**Render Free không có ổ đĩa bền vững:** tệp dữ liệu có thể mất khi deploy, restart hoặc ngủ; khi đó điểm và khóa cũ không thể phục hồi. Muốn giữ lâu dài trên hosting, cần chuyển sổ dữ liệu sang cơ sở dữ liệu bền vững hoặc gắn ổ đĩa persistent và đặt `MERIT_DATA_FILE`. Khóa tạm áp dụng cho danh tính cookie hiện tại; xóa cookie tạo danh tính mới từ 0 và vẫn chịu các giới hạn tốc độ của máy chủ.
 
 ## Điều khiển
 
@@ -87,6 +100,9 @@ Sổ dữ liệu mặc định là `.data/merit-ledger.json`, ghi nguyên tử, 
 - `style.css`: giao diện HUD
 - `game.js`: cảnh 3D (Three.js), nhân vật chibi, người chơi từ xa, giao diện chat, âm thanh và logic công đức/quẻ
 - `room.js`: kết nối phòng chung, đồng bộ và tự kết nối lại
+- `board-games.mjs`: ba trò chơi, luật nước đi, quản lý hai chỗ và kết nối lại
+- `board-ui.js`: giao diện chọn bàn, chơi cờ và xem ván
+- `board-games.test.mjs`: kiểm thử luật và đồng bộ bàn cờ
 - `milestones.js`: bốn cột mốc, điều kiện mở khóa trang phục và nghi thức
 - `server.mjs`: máy chủ HTTP, phòng chung realtime qua SSE, API cập nhật nhân vật và chat
 - `server.test.mjs`: kiểm thử tích hợp máy chủ

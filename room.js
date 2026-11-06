@@ -10,8 +10,8 @@ export function getTopMerit(players) {
 }
 
 export class SharedRoom {
-  constructor({ getState, onPlayers, onChat, onStatus, onRitual = () => {}, onMerit = () => {} }) {
-    Object.assign(this, { getState, onPlayers, onChat, onStatus, onRitual, onMerit });
+  constructor({ getState, onPlayers, onChat, onStatus, onRitual = () => {}, onMerit = () => {}, onTables = () => {} }) {
+    Object.assign(this, { getState, onPlayers, onChat, onStatus, onRitual, onMerit, onTables });
     this.session = null;
     this.source = null;
     this.ready = false;
@@ -41,6 +41,7 @@ export class SharedRoom {
         this.onStatus('connected');
         if (data.account) this.onMerit(data.account, false);
         this.onPlayers(data.players, id);
+        this.onTables(data.tables ?? [], true);
         data.history.forEach(entry => this.receiveChat(entry, false));
         (data.rituals ?? []).forEach(entry => this.onRitual(entry, false));
       });
@@ -48,6 +49,7 @@ export class SharedRoom {
       source.addEventListener('chat', event => this.receiveChat(JSON.parse(event.data), true));
       source.addEventListener('ritual', event => this.onRitual(JSON.parse(event.data), true));
       source.addEventListener('merit', event => this.onMerit(JSON.parse(event.data), true));
+      source.addEventListener('tables', event => this.onTables(JSON.parse(event.data)));
       source.onerror = () => this.retry();
       this.syncTimer ??= setInterval(() => this.sync(), 100);
     } catch { this.retry(); }

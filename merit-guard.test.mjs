@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createMeritAccount, performMeritAction, meritStatus } from './merit-guard.mjs';
+import { createMeritAccount, performMeritAction, meritStatus, lockMerit, refreshMeritLock, MERIT_LOCK_MS } from './merit-guard.mjs';
 import { openMeritLedger } from './merit-ledger.mjs';
 import { createRoomServer } from './server.mjs';
 import { getTopMerit } from './room.js';
@@ -82,16 +82,38 @@ test('occasional overlapping bead requests from two tabs do not cause a fraud lo
   assert.equal(account.blocked, false);
 });
 
-test('repeated abnormal requests zero points, revoke rewards and permanently lock this identity', () => {
+test('abnormal requests reset points and lock exactly one minute, then earning resumes at zero', () => {
   const account = createMeritAccount(100000); account.merit = 4000; account.rewardMerit = 4000;
   performMeritAction(account, 'offer', 100000);
   for (let i = 0; i < 12; i++) performMeritAction(account, 'offer', 100010 + i);
   assert.equal(account.blocked, true);
   assert.equal(account.merit, 0); assert.equal(account.rewardMerit, 0);
-  assert.equal(performMeritAction(account, 'offer', 900000).status, 403);
-  assert.equal(meritStatus(account, 900000).blocked, true);
+  const until = account.blockedUntil;
+  assert.equal(until, 100021 + MERIT_LOCK_MS);
+  assert.equal(performMeritAction(account, 'offer', until - 1).status, 403);
+  assert.equal(meritStatus(account, until - 1).blockRemainingMs, 1);
+  const restored = JSON.parse(JSON.stringify(account));
+  assert.equal(performMeritAction(restored, 'offer', until).status, 200);
+  assert.equal(restored.blocked, false); assert.equal(restored.merit, 5);
+  assert.deepEqual(restored.violations, []);
   assert.deepEqual(getTopMerit([{ id: 'blocked', merit: 9999, meritBlocked: true }, { id: 'ok', merit: 5 }]).map(p => p.id), ['ok']);
   assert.equal(getTopMerit([{ id: 'tab-a', meritIdentity: 'same', merit: 10 }, { id: 'tab-b', meritIdentity: 'same', merit: 10 }]).length, 1);
+});
+
+test('requests during a lock do not extend it; legacy permanent locks migrate to sixty seconds', () => {
+  const account = createMeritAccount(100000);
+  lockMerit(account, 'test', 100000);
+  lockMerit(account, 'again', 120000);
+  assert.equal(account.blockedUntil, 160000);
+  assert.equal(refreshMeritLock(account, 159999), false);
+  assert.equal(refreshMeritLock(account, 160000), true);
+  assert.equal(account.merit, 0);
+  const legacy = createMeritAccount(0); legacy.blocked = true; delete legacy.blockedUntil;
+  assert.equal(refreshMeritLock(legacy, 200000), true);
+  assert.equal(legacy.blockedUntil, 260000);
+  assert.equal(refreshMeritLock(legacy, 210000), false);
+  assert.equal(refreshMeritLock(legacy, 260000), true);
+  assert.equal(legacy.blocked, false);
 });
 
 test('a burst exceeding the minute budget locks rather than publishing the inflated score', () => {
@@ -118,12 +140,13 @@ async function start(t, options = {}) {
       const controller = new AbortController(); t.after(() => controller.abort());
       const response = await fetch(`${base}/api/events?id=${session.id}&token=${session.token}`, { signal: controller.signal });
       assert.equal(response.status, 200);
+      controller.reader = response.body.getReader();
       return controller;
     },
   };
 }
 
-test('server ignores legacy scores, rejects forged state and keeps the lock after rename/rejoin/restart', async t => {
+test('server ignores legacy scores, rejects forged state and preserves lock expiry after rename/rejoin/restart', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'chuaha-merit-test-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const filename = path.join(directory, 'ledger.json');
@@ -146,6 +169,36 @@ test('server ignores legacy scores, rejects forged state and keeps the lock afte
   const restoredApp = await start(t, await openMeritLedger(filename));
   const restored = await restoredApp.post('join', { protocol: 2, name: 'Sau restart' }, null, joined.cookie);
   assert.equal(restored.data.account.blocked, true); assert.equal(restored.data.account.merit, 0);
+  assert.equal(restored.data.account.blockedUntil, forged.data.account.blockedUntil);
+});
+
+test('connected player receives automatic unlock after a minute without sending another request', async t => {
+  let time = 100000;
+  const app = await start(t, { now: () => time });
+  const joined = await app.post('join', { protocol: 2, name: 'Tạm khóa' });
+  const stream = await app.stream(joined.data);
+  const blocked = await app.post('merit', { amount: 999 }, joined.data);
+  assert.equal(blocked.data.account.blockRemainingMs, 60000);
+  time = 160000;
+  const timeout = setTimeout(() => stream.abort(), 4000);
+  let buffer = '', unlocked = false;
+  try {
+    while (!unlocked) {
+      const { value, done } = await stream.reader.read();
+      if (done) throw new Error('Stream ended before unlock');
+      buffer += new TextDecoder().decode(value);
+      let boundary;
+      while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+        const frame = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 2);
+        if (frame.startsWith('event: merit\n')) {
+          const account = JSON.parse(frame.slice(frame.indexOf('data: ') + 6));
+          if (!account.blocked) { assert.equal(account.merit, 0); unlocked = true; }
+        }
+      }
+    }
+  } finally { clearTimeout(timeout); }
+  const earned = await app.post('merit', { action: 'offer' }, joined.data);
+  assert.equal(earned.status, 200); assert.equal(earned.data.account.merit, 5);
 });
 
 test('same browser tabs share cooldowns; arbitrary client amounts and forged join totals are blocked', async t => {

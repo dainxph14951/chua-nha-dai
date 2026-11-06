@@ -43,6 +43,7 @@
   <button class="ib" id="bLook" title="Đổi pháp danh / trang phục">👘</button>
   <button class="ib" id="bChat" title="Trò chuyện phòng chung" aria-label="Mở trò chuyện phòng chung" aria-controls="chat" aria-expanded="false">💬</button>
   <button class="ib" id="bRewards" title="Cột mốc và phần thưởng công đức" aria-label="Cột mốc và phần thưởng công đức">🏅</button>
+  <button class="ib" id="bGames" title="Khuôn viên chơi cờ" aria-label="Chọn bàn cờ tướng, cờ vua hoặc ca-rô">♟</button>
 </div>
 <section class="hud" id="chat" aria-label="Trò chuyện phòng chung" hidden>
   <div class="chat-heading"><strong>💬 Phòng chung · Chùa Hà</strong><button id="chatClose" aria-label="Đóng trò chuyện">✕</button></div>
@@ -67,6 +68,7 @@
   <button class="act" data-a="que"><span>🎋</span>Cầu duyên</button>
 </div>
 <button class="hud" id="sitBtn">Ngồi xuống</button>
+<button class="hud" id="tablePlayBtn" hidden>Chọn bàn cờ</button>
 <div class="hud" id="beads">
   <div class="cnt" id="beadCnt">0 / 108</div>
   <button id="beadTap">Lần hạt</button>
@@ -171,6 +173,37 @@
   </div>
 </div>
 
+<!-- Khuôn viên chơi cờ -->
+<div class="modal" id="mBoardGames">
+  <div class="card board-card">
+    <button class="x" data-close aria-label="Đóng bàn cờ">✕</button>
+    <h2>Khuôn viên chơi cờ</h2>
+    <p class="sub">3 bàn, mỗi bàn 2 người chơi thật. Có thể xem ván khi bàn đã đủ người. Chơi cờ không cộng hay trừ công đức.</p>
+    <button class="btn ghost" id="visitGarden">🌳 Ra khuôn viên</button>
+    <div id="tableChoices" class="table-choices"></div>
+    <p id="boardWaiting">Vào chùa và chờ kết nối phòng chung để chọn bàn.</p>
+    <div id="boardError" role="status"></div>
+    <section id="boardDetail" hidden>
+      <div class="board-layout">
+        <div><h3 id="boardTitle"></h3><div id="boardTurn" role="status"></div><div id="gameBoard" class="game-board"></div></div>
+        <div class="board-info">
+          <div id="boardSeats"></div>
+          <div class="board-buttons">
+            <button class="btn" id="boardJoin">Ngồi vào bàn</button>
+            <button class="btn ghost" id="boardLeave">Rời bàn (xử thua nếu đang chơi)</button>
+            <button class="btn ghost" id="boardResign">Xin thua</button>
+            <button class="btn ghost" id="boardRematch">Chơi ván mới</button>
+          </div>
+          <label id="promotionLabel" for="boardPromotion">Phong cấp tốt thành <select id="boardPromotion"><option value="q">Hậu</option><option value="r">Xe</option><option value="b">Tượng</option><option value="n">Mã</option></select></label>
+          <p class="note" id="boardRules"></p>
+          <p class="note">Đóng bảng vẫn giữ chỗ; bấm Rời bàn để nhường chỗ. Mất kết nối được giữ chỗ 30 giây; quá hạn sẽ nhường chỗ và xử thua nếu ván đang diễn ra.</p>
+          <details><summary>Nước đi gần nhất</summary><ol id="boardHistory"></ol></details>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
 <!-- Help -->
 <div class="modal" id="mHelp">
   <div class="card help">
@@ -178,6 +211,7 @@
     <h2>Hướng dẫn</h2>
     <ul>
       <li><b>Đi lại:</b> cần điều khiển góc trái, hoặc phím W A S D / mũi tên.</li>
+      <li><b>Chơi cờ:</b> đi qua cửa ra khuôn viên phía trước, chọn bàn cờ tướng, cờ vua hoặc ca-rô. Bấm ♟ để chọn bàn từ bất cứ đâu. Cần hai người thật, mỗi người chỉ ngồi một bàn.</li>
       <li><b>Xoay góc nhìn:</b> kéo màn hình. Nút ＋ / － hoặc con lăn chuột để phóng to, thu nhỏ.</li>
       <li><b>Ngồi:</b> lại gần bồ đoàn rồi bấm "Ngồi xuống" (phím E).</li>
       <li><b>Trò chuyện:</b> bấm 💬 để gửi lời nhắn cho mọi người trong phòng chung. Vị trí, trang phục, lạy và thiền được đồng bộ trực tiếp.</li>
@@ -191,7 +225,7 @@
       <li><b>Dâng lễ</b> và <b>Cầu duyên:</b> khấn, xin quẻ, gieo âm dương.</li>
       <li><b>Quẻ cầu duyên:</b> cần đủ 50 công đức, không trừ điểm. <b>Quẻ công việc:</b> chọn tab Công việc trong mục Cầu duyên, có 30 quẻ và không yêu cầu điểm.</li>
     </ul>
-    <div class="note">Công đức do máy chủ kiểm tra và ghi nhận. Dâng lễ cách nhau 10 giây; lần hạt tối đa 4 lần/giây. Tự sửa điểm hoặc liên tục gửi yêu cầu bất thường sẽ bị đưa về 0 và khóa tích điểm. Mọi người ở chung phòng và đọc được lời nhắn trong phòng. Trang mang tính giải trí. Muốn linh hơn thì ghé chùa Hà thật ở phố Chùa Hà, Cầu Giấy, Hà Nội 🙏</div>
+    <div class="note">Công đức do máy chủ kiểm tra và ghi nhận. Dâng lễ cách nhau 10 giây; lần hạt tối đa 4 lần/giây. Tự sửa điểm hoặc liên tục gửi yêu cầu bất thường sẽ bị đưa về 0 và tạm khóa tích điểm 1 phút, sau đó tự mở lại. Mọi người ở chung phòng và đọc được lời nhắn trong phòng. Trang mang tính giải trí. Muốn linh hơn thì ghé chùa Hà thật ở phố Chùa Hà, Cầu Giấy, Hà Nội 🙏</div>
   </div>
 </div>
 

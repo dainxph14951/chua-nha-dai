@@ -4,8 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { earnedMerit, canUseRitual, MILESTONES } from './milestones.js';
-import { createMeritAccount, meritStatus, performMeritAction, lockMerit } from './merit-guard.mjs';
+import { createMeritAccount, meritStatus, performMeritAction, lockMerit, refreshMeritLock } from './merit-guard.mjs';
 import { openMeritLedger } from './merit-ledger.mjs';
+import { createGameTables, snapshotTables, actOnTable, setTablePresence, expireTableSeats } from './board-games.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
@@ -27,7 +28,7 @@ function sanitize(input = {}) {
     level: Math.floor(number(input.level, 1, 999, 1)),
     merit, rewardMerit,
     greeting: input.greeting === true && rewardMerit >= 2000,
-    x: number(input.x, -13.2, 13.2, 0), z: number(input.z, -13.6, 15.2, 13.5),
+    x: number(input.x, -13.2, 13.2, 0), z: number(input.z, -13.6, 37, 13.5),
     yaw: number(input.yaw, -Math.PI * 2, Math.PI * 2, Math.PI),
     state: ['stand', 'walk', 'sit'].includes(input.state) ? input.state : 'stand',
     meditating: input.meditating === true,
@@ -40,6 +41,9 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
   const sessions = new Map();
   const history = [];
   const rituals = [];
+  const tables = createGameTables(), boardRequests = new Map();
+  const boardActor = session => ({ identity: session.account.publicId, name: session.player.name });
+  const broadcastTables = () => broadcast('tables', snapshotTables(tables));
   let dirty = false;
   const verified = account => ({ merit: account.merit, rewardMerit: account.rewardMerit, level: Math.floor(Math.sqrt(account.merit / 12)) + 1 });
   const players = () => [...sessions.values()].filter(s => s.stream).map(s => ({ id: s.id,
@@ -47,6 +51,9 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
   function updateMerit(account) {
     dirty = true;
     for (const session of sessions.values()) if (session.account === account) send(session, 'merit', meritStatus(account, now()));
+  }
+  async function refreshAccount(account) {
+    if (refreshMeritLock(account, now())) { await persist(); updateMerit(account); }
   }
   function forgedPoints(input, account) {
     return (typeof input.merit === 'number' && input.merit > account.merit)
@@ -97,7 +104,8 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
           if (!accounts.has(accountId)) accounts.set(accountId, createMeritAccount(now()));
           const account = accounts.get(accountId);
           account.publicId ??= randomUUID(); // Public ranking key is separate from the private identity cookie.
-          if (forgedPoints(input, account)) lockMerit(account, 'Gửi số công đức tự sửa khi vào phòng.');
+          await refreshAccount(account);
+          if (forgedPoints(input, account)) lockMerit(account, 'Gửi số công đức tự sửa khi vào phòng.', now());
           await persist();
           const secure = req.headers['x-forwarded-proto'] === 'https' || req.socket.encrypted;
           res.setHeader('Set-Cookie', `chuaha_identity=${accountId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${secure ? '; Secure' : ''}`);
@@ -107,13 +115,14 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
             stream: null, touched: Date.now(), lastChat: 0, lastState: 0, lastRitual: 0,
           };
           sessions.set(session.id, session);
-          return json(res, 201, { id: session.id, token: session.token, account: meritStatus(account, now()) });
+          return json(res, 201, { id: session.id, token: session.token, identity: account.publicId, account: meritStatus(account, now()) });
         }
         const id = url.searchParams.get('id');
         const session = sessions.get(id);
         const token = req.headers.authorization?.replace(/^Bearer /, '') || url.searchParams.get('token');
         if (!session || session.token !== token) return json(res, 401, { error: 'Phiên kết nối đã hết hạn.' });
         if (req.method === 'GET' && url.pathname === '/api/events') {
+          await refreshAccount(session.account);
           session.stream?.end();
           res.writeHead(200, {
             'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform',
@@ -121,12 +130,16 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
           });
           res.write(': connected\n\n');
           session.stream = res;
-          send(session, 'welcome', { players: players(), history, rituals, account: meritStatus(session.account, now()) });
+          const reconnected = setTablePresence(tables, boardActor(session), true, now());
+          send(session, 'welcome', { players: players(), history, rituals, tables: snapshotTables(tables), account: meritStatus(session.account, now()) });
+          if (reconnected) broadcastTables();
           message({ system: true, text: `🙏 ${session.player.name} vừa vào chùa` });
           dirty = true;
           res.on('close', () => {
             if (session.stream !== res) return;
             session.stream = null; session.touched = Date.now(); dirty = true;
+            const otherConnection = [...sessions.values()].some(s => s.stream && s.account === session.account);
+            if (!otherConnection && setTablePresence(tables, boardActor(session), false, now())) broadcastTables();
             message({ system: true, text: `${session.player.name} đã rời chùa` });
           });
           return;
@@ -134,21 +147,34 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
         if (req.method !== 'POST') return json(res, 405, { error: 'Phương thức không hỗ trợ.' });
         const input = await body(req);
         session.touched = Date.now();
+        await refreshAccount(session.account);
+        if (url.pathname === '/api/table') {
+          if (!session.stream) return json(res, 409, { error: 'Hãy kết nối phòng chung để chơi cờ.' });
+          const identity = session.account.publicId, previous = boardRequests.get(identity);
+          if (previous !== undefined && now() - previous < 120) return json(res, 429, { error: 'Thao tác bàn cờ quá nhanh, chờ một chút nhé.' });
+          boardRequests.set(identity, now());
+          try { actOnTable(tables, boardActor(session), input); }
+          catch (error) { return json(res, error.status || 400, { error: error.message }); }
+          const data = snapshotTables(tables); broadcast('tables', data);
+          return json(res, 200, { tables: data });
+        }
         if (url.pathname === '/api/state') {
           if (Date.now() - session.lastState < 45) return json(res, 429, { error: 'Cập nhật quá nhanh.' });
           session.lastState = Date.now();
           if (forgedPoints(input, session.account)) {
-            const result = lockMerit(session.account, 'Tự sửa tổng công đức gửi lên máy chủ.');
+            const result = lockMerit(session.account, 'Tự sửa tổng công đức gửi lên máy chủ.', now());
             await persist(); updateMerit(session.account);
             return json(res, result.status, { ...result, account: meritStatus(session.account, now()) });
           }
+          const previousName = session.player.name;
           session.player = sanitize({ ...input, ...verified(session.account) }); dirty = true;
+          if (session.player.name !== previousName && setTablePresence(tables, boardActor(session), true, now())) broadcastTables();
           return json(res, 200, { ok: true });
         }
         if (url.pathname === '/api/merit') {
           if (!session.stream) return json(res, 409, { error: 'Chờ kết nối phòng chung trước khi tích công đức.' });
           const result = Object.hasOwn(input, 'amount') || forgedPoints(input, session.account)
-            ? lockMerit(session.account, 'Gửi yêu cầu tự cộng số điểm không hợp lệ.')
+            ? lockMerit(session.account, 'Gửi yêu cầu tự cộng số điểm không hợp lệ.', now())
             : performMeritAction(session.account, input.action, now());
           await persist(); updateMerit(session.account);
           return json(res, result.status, { ...result, account: meritStatus(session.account, now()) });
@@ -178,7 +204,7 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
       if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
       const filename = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
       // Only public assets are served; never expose source, Git metadata, or dotfiles.
-      if (!['index.html', 'style.css', 'game.js', 'room.js', 'milestones.js', 'work-fortunes.js', 'lib/three.module.js', 'lib/RoomEnvironment.js'].includes(filename)) {
+      if (!['index.html', 'style.css', 'game.js', 'room.js', 'board-ui.js', 'milestones.js', 'work-fortunes.js', 'lib/three.module.js', 'lib/RoomEnvironment.js'].includes(filename)) {
         res.writeHead(404); return res.end('Not found');
       }
       const data = await readFile(path.join(ROOT, filename));
@@ -190,6 +216,13 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
     }
   });
   const tick = setInterval(() => {
+    if (expireTableSeats(tables, now())) broadcastTables();
+    const unlocked = new Set();
+    for (const session of sessions.values()) if (refreshMeritLock(session.account, now())) unlocked.add(session.account);
+    if (unlocked.size) {
+      for (const account of unlocked) updateMerit(account);
+      persist().catch(error => console.error('Không lưu được trạng thái mở khóa công đức:', error.message));
+    }
     if (dirty) { dirty = false; broadcast('players', players()); }
   }, 100);
   const heartbeat = setInterval(() => {
@@ -198,7 +231,7 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
       if (session.stream) {
         if (session.stream.writableLength > 256 * 1024) session.stream.destroy();
         else session.stream.write(': heartbeat\n\n');
-      } else if (now - session.touched > 45000) sessions.delete(session.id);
+      } else if (now - session.touched > 45000) { sessions.delete(session.id); boardRequests.delete(session.account.publicId); }
     }
   }, 15000);
   server.on('close', () => { clearInterval(tick); clearInterval(heartbeat); });

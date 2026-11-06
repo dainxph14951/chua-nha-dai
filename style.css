@@ -35,6 +35,43 @@ button{font:inherit;cursor:pointer}
 .reward-tools .btn{font-size:12px;padding:9px 12px;margin-top:8px}
 .reward-tools .btn:disabled{cursor:not-allowed}
 #lanternForm[hidden]{display:none}
+.board-card{max-width:1000px;touch-action:pan-y}
+.board-card #visitGarden{margin-top:0;padding:8px 12px;font-size:12px}
+.table-choices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.table-choice{padding:10px 6px;border:1px solid #d9b98f;border-radius:10px;background:#fff8e9;color:var(--ink);font-size:12px}
+.table-choice strong,.table-choice span{display:block}
+.table-choice span{font-size:10px;margin-top:4px}
+.table-choice.selected{border-color:var(--red);background:#ffe9d1}
+#boardDetail[hidden],#boardWaiting[hidden],.board-buttons button[hidden],#promotionLabel[hidden]{display:none}
+.board-layout{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:20px}
+#boardTitle{color:var(--red2);font-family:"Noto Serif",serif}
+#boardTurn{font-weight:700;font-size:13px;min-height:32px;padding:6px 0;color:var(--red2)}
+#boardError{color:#a6212b;font-weight:600;font-size:13px;margin:8px 0}
+.game-board{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));grid-template-rows:repeat(var(--rows),minmax(0,1fr));aspect-ratio:var(--cols)/var(--rows);width:100%;border:3px solid #7e542c;position:relative;background:#ecd1a2;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.board-cell{min-width:0;min-height:0;padding:0;border:0;display:grid;place-items:center;position:relative;background:#eddbb5;cursor:pointer;touch-action:manipulation}
+.board-cell:disabled{cursor:default;opacity:1}
+.chess .board-cell.dark{background:#8f6c4a}
+.chess .piece{font:clamp(24px,5vw,48px)/1 "Apple Symbols","Arial Unicode MS",serif;color:#19130e;text-shadow:0 1px 0 #fff4}
+.chess .side-w{color:#fffdf3;text-shadow:1px 0 #382716,-1px 0 #382716,0 1px #382716,0 -1px #382716}
+.xiangqi .board-cell{background-color:transparent;background-image:linear-gradient(90deg,transparent calc(50% - .5px),#89643c calc(50% - .5px),#89643c calc(50% + .5px),transparent calc(50% + .5px)),linear-gradient(transparent calc(50% - .5px),#89643c calc(50% - .5px),#89643c calc(50% + .5px),transparent calc(50% + .5px))}
+.xiangqi .piece{z-index:1;border:2px solid currentColor;border-radius:50%;background:#fff0ce;width:82%;aspect-ratio:1;display:grid;place-items:center;font:bold clamp(15px,3.8vw,32px)/1 serif;box-shadow:0 2px 3px #0004}
+.xiangqi .side-r{color:#a21d24}.xiangqi .side-b{color:#242626}
+.board-river{position:absolute;top:50%;left:12%;right:12%;transform:translateY(-50%);text-align:center;background:#ecd1a2;color:#7e542c;pointer-events:none;line-height:1;font:clamp(9px,2vw,15px)/1 serif;letter-spacing:.4em}
+.caro .board-cell{border:.5px solid #c3a782;background:#fff8e9}
+.caro .piece{font:bold clamp(12px,2.6vw,25px)/1 system-ui}.caro .side-X{color:#a6212b}.caro .side-O{color:#30609b}
+.board-cell.last-move{box-shadow:inset 0 0 0 3px #e0a13e}
+.board-cell.selected{box-shadow:inset 0 0 0 3px #b3242b}
+.board-cell.legal::after{content:"";position:absolute;width:24%;aspect-ratio:1;border-radius:50%;background:#157c55b0;z-index:2}
+.board-cell.winning,.board-cell.in-check{background-color:#f1a28d!important}
+.board-info{font-size:13px;line-height:1.6}
+#boardSeats{font-weight:600;overflow-wrap:anywhere}
+.board-buttons{display:flex;flex-direction:column;align-items:stretch}
+.board-buttons .btn{font-size:12px;padding:8px 10px;margin-top:8px;justify-content:center}
+#promotionLabel{font-size:12px}#boardPromotion{padding:5px;border:1px solid #d9b98f;border-radius:7px;background:#fff8e9;font:inherit;color:var(--ink)}
+#boardHistory{padding-left:20px;font-size:12px;max-height:150px;overflow:auto;touch-action:pan-y}
+#tablePlayBtn{left:50%;bottom:180px;transform:translateX(-50%);border:1px solid var(--gold);border-radius:999px;background:var(--panel);color:var(--gold2);padding:10px 18px;pointer-events:auto;font-weight:700}
+#tablePlayBtn[hidden]{display:none}
+@media(max-width:700px){.board-layout{grid-template-columns:minmax(0,1fr);gap:12px}.board-card{padding:16px}.board-buttons{flex-direction:row;flex-wrap:wrap;gap:6px}.board-buttons .btn{flex:1;min-width:120px}.board-info{font-size:12px}}
 #profile .bar{height:4px;background:rgba(255,255,255,.15);border-radius:4px;margin-top:4px;overflow:hidden;width:130px}
 #profile .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--gold),#ff9a6b);transition:width .4s}
 #merit{top:12px;right:12px;display:flex;gap:8px}
