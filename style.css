@@ -16,6 +16,12 @@ button{font:inherit;cursor:pointer}
 #profile .lv{font-size:11.5px;color:#e9c9a8}
 #pBadge{font-size:11px;font-weight:700;color:var(--gold2)}
 #pBadge:empty{display:none}
+#pSecurity{font-size:10px;color:#ffb5a8;font-weight:700}
+#pSecurity:empty{display:none}
+.merit-blocked #title{top:102px}
+#integrityBanner{position:fixed;left:0;right:0;top:32%;z-index:45;background:rgba(84,21,25,.98);border-block:2px solid var(--gold);color:var(--gold2);padding:18px 24px;text-align:center;font-size:15px;line-height:1.7}
+#integrityBanner[hidden]{display:none}
+#integrityClose{display:block;margin:10px auto 0;padding:7px 20px;border:1px solid var(--gold);border-radius:10px;background:#562020;color:var(--gold2)}
 .has-merit-badge #title{top:88px}
 .sw:disabled{opacity:.3;cursor:not-allowed;box-shadow:0 0 0 2px #aaa}
 #milestoneCelebration{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:25;width:min(480px,calc(100vw - 28px));padding:18px;border:2px solid var(--gold);border-radius:16px;background:rgba(46,22,14,.97);color:var(--gold2);text-align:center;line-height:1.7;pointer-events:none;box-shadow:0 8px 40px #0008}

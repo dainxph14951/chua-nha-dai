@@ -24,6 +24,7 @@
     <div class="nm" id="pName">Phật tử</div>
     <div class="lv" id="pLevel">Hạt sen · bậc 1</div>
     <div id="pBadge"></div>
+    <div id="pSecurity" role="status"></div>
     <div class="bar"><i id="pBar"></i></div>
   </div>
 </div>
@@ -76,6 +77,7 @@
 <div class="hud" id="toast"></div>
 <div id="meritNotice" role="alert" aria-atomic="true" hidden></div>
 <div id="milestoneCelebration" role="status" hidden></div>
+<div id="integrityBanner" role="alert" hidden><span id="integrityMessage"></span><button id="integrityClose" aria-label="Đóng cảnh báo">Đã hiểu</button></div>
 
 <!-- Start -->
 <div class="modal show" id="start">
@@ -152,7 +154,7 @@
   <div class="card">
     <button class="x" data-close aria-label="Đóng phần thưởng">✕</button>
     <h2>Cột mốc công đức</h2>
-    <div class="sub">Tích công đức để mở phần thưởng được lưu trên trình duyệt này. Các mốc được cộng dồn, không trừ điểm.</div>
+    <div class="sub">Tích công đức hợp lệ để mở phần thưởng được máy chủ ghi nhận. Các mốc được cộng dồn, không trừ điểm.</div>
     <div id="rewardProgress" role="status"></div>
     <div id="rewardList"></div>
     <div class="reward-tools">
@@ -189,7 +191,7 @@
       <li><b>Dâng lễ</b> và <b>Cầu duyên:</b> khấn, xin quẻ, gieo âm dương.</li>
       <li><b>Quẻ cầu duyên:</b> cần đủ 50 công đức, không trừ điểm. <b>Quẻ công việc:</b> chọn tab Công việc trong mục Cầu duyên, có 30 quẻ và không yêu cầu điểm.</li>
     </ul>
-    <div class="note">Tất cả người chơi kết nối cùng máy chủ sẽ ở chung một phòng. Lời nhắn được chia sẻ công khai trong phòng, hãy trò chuyện lịch sự. Công đức chỉ lưu trên trình duyệt của bạn. Trang mang tính giải trí. Muốn linh hơn thì ghé chùa Hà thật ở phố Chùa Hà, Cầu Giấy, Hà Nội 🙏</div>
+    <div class="note">Công đức do máy chủ kiểm tra và ghi nhận. Dâng lễ cách nhau 10 giây; lần hạt tối đa 4 lần/giây. Tự sửa điểm hoặc liên tục gửi yêu cầu bất thường sẽ bị đưa về 0 và khóa tích điểm. Mọi người ở chung phòng và đọc được lời nhắn trong phòng. Trang mang tính giải trí. Muốn linh hơn thì ghé chùa Hà thật ở phố Chùa Hà, Cầu Giấy, Hà Nội 🙏</div>
   </div>
 </div>
 

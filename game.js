@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from './lib/RoomEnvironment.js';
 import { SharedRoom, getTopMerit } from './room.js';
 import { WORK_FORTUNES } from './work-fortunes.js';
-import { MILESTONES, earnedMerit, milestoneTier } from './milestones.js';
+import { MILESTONES, milestoneTier } from './milestones.js';
 
 /* =========================================================
    Chùa Hà Online 3D — game.js
@@ -668,6 +668,7 @@ class Avatar {
       }
     }
     if (this.lotusHalo) this.lotusHalo.visible = tier >= 4;
+    if (tier < 1 && this.rewardPetals) { this.petalT = 0; this.rewardPetals.visible = false; }
   }
   greet() { this.greetT = 3; }
   get pos() { return this.root.position; }
@@ -803,11 +804,9 @@ $$('.modal').forEach((m) => m.addEventListener('pointerdown', (e) => { if (e.tar
 /* ---------------- Profile / level ---------------- */
 const P = {
   name: store.get('name', ''), robe: store.get('robe', ROBES[0].c), hair: store.get('hair', 'ngan'),
-  merit: store.get('merit', 0), beads: store.get('beads', 0), rounds: store.get('rounds', 0),
-  rewardMerit: store.get('rewardMerit', 0),
+  merit: 0, beads: 0, rounds: 0, rewardMerit: 0, blocked: false,
 };
-P.merit = earnedMerit(P.merit);
-P.rewardMerit = earnedMerit(P.merit, P.rewardMerit); store.set('rewardMerit', P.rewardMerit);
+// Old localStorage scores are not proof of legitimate earnings. The server restores verified points.
 if (!ROBES.some(r => r.c === P.robe && (r.required ?? 0) <= P.rewardMerit)) P.robe = ROBES[0].c;
 function levelOf(m) { return Math.floor(Math.sqrt(m / 12)) + 1; }
 function levelMin(l) { return 12 * (l - 1) * (l - 1); }
@@ -824,26 +823,56 @@ function renderProfile() {
   renderMilestoneBoard(P.rewardMerit);
   renderRewards();
 }
-function addMerit(n, why) {
-  const before = levelOf(P.merit);
-  const previousEarned = P.rewardMerit;
-  P.merit += n; store.set('merit', P.merit);
-  P.rewardMerit = earnedMerit(P.merit, P.rewardMerit); store.set('rewardMerit', P.rewardMerit);
-  renderProfile();
-  if (player) floatText('+' + n + ' công đức', player.pos.x, player.pos.y + 2.6, player.pos.z, '#9cf5b5', 0.7);
-  const after = levelOf(P.merit);
-  if (after > before) {
-    toast(`🪷 Thăng cấp: Hạt sen · bậc ${after}`); petals(24); bellSound(262, 4, 0.25);
-    feed(`✨ ${P.name} thăng cấp Hạt sen · bậc ${after}`);
-    player.setName(P.name, after);
+let meritRevision = -1;
+function applyMeritStatus(status, live = true) {
+  if (live && status.revision < meritRevision) return;
+  meritRevision = status.revision;
+  const before = P.merit, previousEarned = P.rewardMerit, wasBlocked = P.blocked;
+  P.merit = status.merit; P.rewardMerit = status.rewardMerit;
+  P.beads = status.beads; P.rounds = status.rounds; P.blocked = status.blocked;
+  offerReadyAt = performance.now() + (status.offerWaitMs ?? 0);
+  store.set('merit', P.merit); store.set('rewardMerit', P.rewardMerit);
+  store.set('beads', P.beads); store.set('rounds', P.rounds);
+  const selectedRobe = ROBES.find(r => r.c === P.robe);
+  if ((selectedRobe?.required ?? 0) > P.rewardMerit) {
+    P.robe = ROBES[0].c; robeSel = P.robe; store.set('robe', P.robe); player?.setLook(P.robe);
   }
-  const unlocked = MILESTONES.filter(m => previousEarned < m.merit && P.rewardMerit >= m.merit);
-  if (unlocked.length) {
-    const last = unlocked.at(-1);
-    showMilestoneCelebration(last); syncStart();
-    petals(30); bellSound(330, 5, 0.25);
-    feed(`🏅 ${P.name} đạt mốc ${last.merit.toLocaleString('vi-VN')} công đức · ${last.title}`);
+  if (player && (player.name !== P.name || player.level !== levelOf(P.merit))) player.setName(P.name, levelOf(P.merit));
+  renderProfile(); renderBeads(); syncStart();
+  $('#pSecurity').textContent = P.blocked ? '⚠ Đã khóa tích công đức' : '';
+  document.body.classList.toggle('merit-blocked', P.blocked);
+  if (P.blocked) {
+    stopAll(); beadAuto = false; $('#beadAuto').classList.remove('on');
+    if (player) { player.pendingMeritBow = false; player.bowQueue = 0; }
+    $('#milestoneCelebration').hidden = true;
+    if (!wasBlocked || !live) {
+      $('#integrityMessage').textContent = 'Phát hiện tích công đức bất thường. Công đức và phần thưởng đã được đưa về 0. Bạn đã bị khóa tích công đức; tải lại trang hoặc đổi tên không gỡ khóa. ' + (status.reason || '');
+      $('#integrityBanner').hidden = false;
+    }
+    return;
   }
+  if (live && P.merit > before && player) {
+    floatText('+' + (P.merit - before) + ' công đức', player.pos.x, player.pos.y + 2.6, player.pos.z, '#9cf5b5', 0.7);
+    if (levelOf(P.merit) > levelOf(before)) toast(`🪷 Thăng cấp: Hạt sen · bậc ${levelOf(P.merit)}`);
+    const unlocked = MILESTONES.filter(m => previousEarned < m.merit && P.rewardMerit >= m.merit);
+    if (unlocked.length) {
+      const last = unlocked.at(-1); showMilestoneCelebration(last);
+      petals(30); bellSound(330, 5, 0.25);
+      feed(`🏅 ${P.name} đạt mốc ${last.merit.toLocaleString('vi-VN')} công đức · ${last.title}`);
+    }
+  }
+  if (!live && !store.get('verifiedMeritV2', false)) {
+    store.set('verifiedMeritV2', true);
+    $('#integrityMessage').textContent = 'Hệ thống đã chuyển sang công đức do máy chủ xác thực. Điểm cũ lưu trên trình duyệt không thể kiểm chứng và được tính lại từ 0. Từ nay điểm và phần thưởng hợp lệ được máy chủ ghi nhận.';
+    $('#integrityBanner').hidden = false;
+  }
+}
+$('#integrityClose').onclick = () => { $('#integrityBanner').hidden = true; };
+async function addMerit(action) {
+  if (P.blocked) { toast('⚠ Đã khóa tích công đức do hoạt động bất thường.'); return null; }
+  if (!room.ready) { toast('Chờ kết nối phòng chung để tích công đức.'); return null; }
+  try { return await room.post('merit', { action }); }
+  catch (error) { if (!P.blocked) toast(error.message); return null; }
 }
 
 /* ---------------- Start screen ---------------- */
@@ -1041,8 +1070,7 @@ function appendChat(entry, live) {
 }
 const room = new SharedRoom({
   getState: () => ({
-    name: P.name, robe: P.robe, hair: P.hair, level: levelOf(P.merit), merit: P.merit,
-    rewardMerit: P.rewardMerit, greeting: player.greetT > 0,
+    name: P.name, robe: P.robe, hair: P.hair, greeting: player.greetT > 0,
     x: player.pos.x, z: player.pos.z,
     yaw: Math.atan2(Math.sin(player.root.rotation.y), Math.cos(player.root.rotation.y)),
     state: player.state, meditating: player.meditating, bowQueue: player.bowQueue, bowT: player.bowT,
@@ -1050,8 +1078,9 @@ const room = new SharedRoom({
   onPlayers: syncRoomPlayers,
   onChat: appendChat,
   onRitual: renderRitual,
+  onMerit: applyMeritStatus,
   onStatus: status => {
-    $('#roomStatus').textContent = status === 'connected' ? 'Phòng chung · Đã kết nối' : status === 'connecting' ? 'Đang vào phòng chung…' : 'Mất kết nối · Đang thử lại…';
+    $('#roomStatus').textContent = status === 'outdated' ? 'Có bản mới · Hãy tải lại trang' : status === 'connected' ? 'Phòng chung · Đã kết nối' : status === 'connecting' ? 'Đang vào phòng chung…' : 'Mất kết nối · Đang thử lại…';
     $('#roomStatus').dataset.status = status;
     $('#chatSend').disabled = status !== 'connected';
     if (status !== 'connected') { $('#online').textContent = '—'; clearRemotePlayers(); renderMeritBoard([], '', status); }
@@ -1147,13 +1176,16 @@ function setOn(a, on) { const b = $(`.act[data-a="${a}"]`); if (b) b.classList.t
 
 function onPlayerBow(left) {
   bellSound(220 + Math.random() * 10, 3, 0.18);
-  if (left === 0) { addMerit(3); feed(`🙇 ${P.name} vừa thành tâm lạy Phật 3 lạy`); }
+  if (left === 0 && player.pendingMeritBow) {
+    player.pendingMeritBow = false; addMerit('bow');
+    feed(`🙇 ${P.name} vừa thành tâm lạy Phật 3 lạy`);
+  }
 }
 
 const ACTIONS = {
   bow() {
     if (player.busy) return;
-    stopAll(); player.faceAltar(); player.bow(3);
+    stopAll(); player.pendingMeritBow = true; player.faceAltar(); player.bow(3);
     toast('Thành tâm 3 lạy 🙏');
   },
   beads() {
@@ -1186,15 +1218,20 @@ const ACTIONS = {
 $$('.act').forEach((b) => b.onclick = () => { if (player) ACTIONS[b.dataset.a](); });
 
 function renderBeads() { $('#beadCnt').textContent = `${P.beads} / 108`; }
-function beadTap() {
-  P.beads++; tick();
-  if (P.beads % 9 === 0) floatText('A Di Đà Phật', player.pos.x, player.pos.y + 2.6, player.pos.z, '#ffe2a3', 0.6);
-  if (P.beads >= 108) {
-    P.beads = 0; P.rounds++; store.set('rounds', P.rounds);
-    bellSound(); petals(20); toast(`📿 Tròn chuỗi 108 hạt (lần thứ ${P.rounds})`);
-    feed(`📿 ${P.name} vừa tròn một chuỗi 108 hạt`); addMerit(20);
-  }
-  store.set('beads', P.beads); renderBeads();
+let beadRequestPending = false, lastBeadTap = -Infinity;
+async function beadTap() {
+  if (!player || beadRequestPending || performance.now() - lastBeadTap < 250) return;
+  lastBeadTap = performance.now(); beadRequestPending = true;
+  try {
+    const result = await addMerit('bead');
+    if (!result) return;
+    tick();
+    if (P.beads % 9 === 0) floatText('A Di Đà Phật', player.pos.x, player.pos.y + 2.6, player.pos.z, '#ffe2a3', 0.6);
+    if (result.awarded === 20) {
+      bellSound(); petals(20); toast(`📿 Tròn chuỗi 108 hạt (lần thứ ${P.rounds})`);
+      feed(`📿 ${P.name} vừa tròn một chuỗi 108 hạt`);
+    }
+  } finally { beadRequestPending = false; }
 }
 $('#beadTap').onclick = beadTap;
 $('#beadAuto').onclick = () => { beadAuto = !beadAuto; $('#beadAuto').classList.toggle('on', beadAuto); };
@@ -1207,9 +1244,16 @@ $('#sitBtn').onclick = () => {
 };
 
 // Dâng lễ
+let offerPending = false, offerReadyAt = 0;
 const offerings = [];
 const OFFER_NAMES = { lotus: 'hoa sen', fruit: 'mâm quả', incense: 'nén hương', candle: 'đôi nến' };
-$$('.offer button').forEach((b) => b.onclick = () => {
+$$('.offer button').forEach((b) => b.onclick = async () => {
+  if (offerPending || !player) return;
+  if (performance.now() < offerReadyAt) { toast(`Chờ ${Math.ceil((offerReadyAt - performance.now()) / 1000)} giây để dâng lễ tiếp.`); return; }
+  offerPending = true;
+  const reward = await addMerit('offer');
+  offerPending = false;
+  if (!reward) return;
   const k = b.dataset.o; closeModal('mOffer');
   if (offerings.length >= 10) { const o = offerings.shift(); altar.remove(o); }
   const x = rand(-1.5, 1.5), z = TABLE.z + rand(0.15, 0.5);
@@ -1222,9 +1266,9 @@ $$('.offer button').forEach((b) => b.onclick = () => {
     for (let i = 0; i < 3; i++) { mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.5, 5), mat(0x9a4a2a), (i - 1) * 0.04, 0.35, 0, o); mesh(new THREE.SphereGeometry(0.018, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff6a2a }), (i - 1) * 0.04, 0.6, 0, o); }
   }
   o.scale.setScalar(0.01); o.userData.grow = 0; offerings.push(o);
-  stopAll(); player.faceAltar(); player.bow(1);
+  stopAll(); player.pendingMeritBow = false; player.faceAltar(); player.bow(1);
   bellSound(247, 4, 0.25); petals(10);
-  addMerit(5); feed(`🪷 ${P.name} vừa dâng ${OFFER_NAMES[k]}`); toast(`Đã dâng ${OFFER_NAMES[k]} lên Phật 🙏`);
+  feed(`🪷 ${P.name} vừa dâng ${OFFER_NAMES[k]}`); toast(`Đã dâng ${OFFER_NAMES[k]} lên Phật 🙏`);
 });
 
 /* ---------------- Cầu duyên: khấn + quẻ ---------------- */
@@ -1265,8 +1309,11 @@ $('#doPray').onclick = () => {
   $('#cpPray').onclick = () => copy(t);
   $('#toQue').onclick = () => $('.tab[data-t="que"]').click();
   bellSound(262, 3, 0.25); petals(12);
-  player.faceAltar(); player.bow(1);
-  if (!prayedToday) { prayedToday = true; addMerit(5); feed(`💌 ${P.name} vừa khấn cầu duyên`); }
+  player.pendingMeritBow = false; player.faceAltar(); player.bow(1);
+  if (!prayedToday) {
+    addMerit('pray').then(result => { if (result) prayedToday = true; });
+    feed(`💌 ${P.name} vừa khấn cầu duyên`);
+  }
 };
 const QUE = [
   { lvl: 'Thượng cát', title: 'Hồng tuyến tự liên', tho: 'Chỉ hồng đã buộc từ lâu,\nNgười ở rất gần, chẳng đâu xa vời.', giai: 'Người hợp với bạn đang ở trong vòng quen biết — đồng nghiệp, bạn của bạn, hoặc ai đó hay tương tác. Để ý người hỏi han bạn đều đặn.', lam: 'Nhận lời một buổi cà phê, đi đám cưới bạn bè.', thoi: 'Trong 3 tháng tới' },
@@ -1284,7 +1331,6 @@ const QUE = [
   { lvl: 'Trung bình', title: 'Hoa khai hữu thì', tho: 'Hoa nở có mùa, quả có thì,\nVội vàng hái sớm, ích gì hỡi ai.', giai: 'Đừng vội. Mối đang có cần thêm thời gian tìm hiểu, đừng gấp quyết định lớn.', lam: 'Hẹn hò chậm lại, quan sát người ấy khi có chuyện khó.', thoi: 'Qua vài mùa' },
   { lvl: 'Thượng cát', title: 'Lương nhân tại vọng', tho: 'Ngoảnh lại thấy người đứng chờ,\nBao lâu thầm lặng, chẳng ngờ là duyên.', giai: 'Có người đã thích bạn từ lâu mà bạn không để ý. Thường là người rất hay giúp đỡ bạn.', lam: 'Cảm ơn người hay giúp mình — bằng một bữa ăn.', thoi: 'Tháng này' },
 ];
-let queCount = 0;
 $('#doShake').onclick = () => {
   if ($('#doShake').disabled || !canDrawLoveFortune()) return;
   $('#doShake').disabled = true;
@@ -1297,8 +1343,8 @@ $('#doShake').onclick = () => {
     $('#coinBox').style.display = 'block'; $('#coinMsg').textContent = ''; $('#c1').textContent = '?'; $('#c2').textContent = '?';
     bellSound(300, 2.5, 0.2);
     if (q.lvl.includes('cát')) petals(q.lvl === 'Đại cát' ? 30 : 14);
-    queCount++; feed(`🎋 ${P.name} vừa xin được quẻ ${q.lvl}`);
-    if (queCount <= 3) addMerit(2);
+    feed(`🎋 ${P.name} vừa xin được quẻ ${q.lvl}`);
+    addMerit('fortune');
     $('#doShake').disabled = false;
   }, 1500);
 };
@@ -1408,7 +1454,7 @@ function updatePlayer(dt, t) {
       chantT = 0.55; mo(0.45);
       floatText(CHANT[chantIdx], player.pos.x + rand(-0.4, 0.4), player.pos.y + 2.5, player.pos.z, '#ffe2a3', 0.55);
       chantIdx++;
-      if (chantIdx >= CHANT.length) { chantIdx = 0; chantT = 1.1; addMerit(1); }
+      if (chantIdx >= CHANT.length) { chantIdx = 0; chantT = 1.1; addMerit('chant'); }
     }
   }
   // beads auto
@@ -1417,7 +1463,7 @@ function updatePlayer(dt, t) {
   if (player.meditating) {
     const s = (performance.now() - medStart) / 1000;
     $('#mediT').textContent = `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-    if (s - medAcc >= 10) { medAcc += 10; addMerit(1); }
+    if (s - medAcc >= 10) { medAcc += 10; addMerit('meditate'); }
   }
   player.update(dt, t, moving);
 }

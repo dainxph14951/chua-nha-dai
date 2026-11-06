@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { earnedMerit, canUseRitual, MILESTONES } from './milestones.js';
+import { createMeritAccount, meritStatus, performMeritAction, lockMerit } from './merit-guard.mjs';
+import { openMeritLedger } from './merit-ledger.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
@@ -34,12 +36,22 @@ function sanitize(input = {}) {
   };
 }
 
-export function createRoomServer() {
+export function createRoomServer({ accounts = new Map(), persist = async () => {}, now = () => Date.now() } = {}) {
   const sessions = new Map();
   const history = [];
   const rituals = [];
   let dirty = false;
-  const players = () => [...sessions.values()].filter(s => s.stream).map(s => ({ id: s.id, ...s.player }));
+  const verified = account => ({ merit: account.merit, rewardMerit: account.rewardMerit, level: Math.floor(Math.sqrt(account.merit / 12)) + 1 });
+  const players = () => [...sessions.values()].filter(s => s.stream).map(s => ({ id: s.id,
+    ...sanitize({ ...s.player, ...verified(s.account) }), meritBlocked: s.account.blocked, meritIdentity: s.account.publicId }));
+  function updateMerit(account) {
+    dirty = true;
+    for (const session of sessions.values()) if (session.account === account) send(session, 'merit', meritStatus(account, now()));
+  }
+  function forgedPoints(input, account) {
+    return (typeof input.merit === 'number' && input.merit > account.merit)
+      || (typeof input.rewardMerit === 'number' && input.rewardMerit > account.rewardMerit);
+  }
   function send(session, type, data) {
     if (!session.stream) return;
     // Drop slow connections instead of buffering unbounded snapshots.
@@ -78,12 +90,24 @@ export function createRoomServer() {
         if (req.method === 'POST' && url.pathname === '/api/join') {
           if (sessions.size >= 200) return json(res, 503, { error: 'Chùa đang đông, vui lòng thử lại sau.' });
           const input = await body(req);
+          if (input.protocol !== 2) return json(res, 426, { error: 'Đã có bản chống gian lận mới. Hãy tải lại trang để vào chùa.' });
+          if (sessions.size >= 200) return json(res, 503, { error: 'Chùa đang đông, vui lòng thử lại sau.' });
+          const cookie = req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith('chuaha_identity='))?.slice('chuaha_identity='.length);
+          const accountId = cookie && accounts.has(cookie) ? cookie : randomBytes(24).toString('hex');
+          if (!accounts.has(accountId)) accounts.set(accountId, createMeritAccount(now()));
+          const account = accounts.get(accountId);
+          account.publicId ??= randomUUID(); // Public ranking key is separate from the private identity cookie.
+          if (forgedPoints(input, account)) lockMerit(account, 'Gửi số công đức tự sửa khi vào phòng.');
+          await persist();
+          const secure = req.headers['x-forwarded-proto'] === 'https' || req.socket.encrypted;
+          res.setHeader('Set-Cookie', `chuaha_identity=${accountId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${secure ? '; Secure' : ''}`);
           const session = {
-            id: randomUUID(), token: randomBytes(24).toString('hex'), player: sanitize(input),
+            id: randomUUID(), token: randomBytes(24).toString('hex'), account,
+            player: sanitize({ ...input, ...verified(account) }),
             stream: null, touched: Date.now(), lastChat: 0, lastState: 0, lastRitual: 0,
           };
           sessions.set(session.id, session);
-          return json(res, 201, { id: session.id, token: session.token });
+          return json(res, 201, { id: session.id, token: session.token, account: meritStatus(account, now()) });
         }
         const id = url.searchParams.get('id');
         const session = sessions.get(id);
@@ -97,7 +121,7 @@ export function createRoomServer() {
           });
           res.write(': connected\n\n');
           session.stream = res;
-          send(session, 'welcome', { players: players(), history, rituals });
+          send(session, 'welcome', { players: players(), history, rituals, account: meritStatus(session.account, now()) });
           message({ system: true, text: `🙏 ${session.player.name} vừa vào chùa` });
           dirty = true;
           res.on('close', () => {
@@ -113,12 +137,25 @@ export function createRoomServer() {
         if (url.pathname === '/api/state') {
           if (Date.now() - session.lastState < 45) return json(res, 429, { error: 'Cập nhật quá nhanh.' });
           session.lastState = Date.now();
-          session.player = sanitize({ ...input, rewardMerit: earnedMerit(input.rewardMerit, session.player.rewardMerit) }); dirty = true;
+          if (forgedPoints(input, session.account)) {
+            const result = lockMerit(session.account, 'Tự sửa tổng công đức gửi lên máy chủ.');
+            await persist(); updateMerit(session.account);
+            return json(res, result.status, { ...result, account: meritStatus(session.account, now()) });
+          }
+          session.player = sanitize({ ...input, ...verified(session.account) }); dirty = true;
           return json(res, 200, { ok: true });
+        }
+        if (url.pathname === '/api/merit') {
+          if (!session.stream) return json(res, 409, { error: 'Chờ kết nối phòng chung trước khi tích công đức.' });
+          const result = Object.hasOwn(input, 'amount') || forgedPoints(input, session.account)
+            ? lockMerit(session.account, 'Gửi yêu cầu tự cộng số điểm không hợp lệ.')
+            : performMeritAction(session.account, input.action, now());
+          await persist(); updateMerit(session.account);
+          return json(res, result.status, { ...result, account: meritStatus(session.account, now()) });
         }
         if (url.pathname === '/api/ritual') {
           if (!session.stream) return json(res, 409, { error: 'Hãy kết nối phòng chung trước.' });
-          if (!canUseRitual(input.type, session.player.rewardMerit)) return json(res, 403, { error: 'Bạn chưa mở khóa nghi thức này.' });
+          if (session.account.blocked || !canUseRitual(input.type, session.account.rewardMerit)) return json(res, 403, { error: 'Bạn chưa mở khóa nghi thức này.' });
           if (Date.now() - session.lastRitual < 10000) return json(res, 429, { error: 'Chờ 10 giây giữa hai nghi thức nhé.' });
           session.lastRitual = Date.now();
           const ritual = { id: randomUUID(), type: input.type, name: session.player.name, wish: cleanText(input.wish, 120), time: Date.now() };
@@ -173,7 +210,8 @@ export function createRoomServer() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const server = createRoomServer();
+  const ledger = await openMeritLedger(process.env.MERIT_DATA_FILE || path.join(ROOT, '.data/merit-ledger.json'));
+  const server = createRoomServer(ledger);
   const port = Number(process.env.PORT || 8000);
   server.listen(port, '0.0.0.0', () => console.log(`Chùa Hà Online: http://localhost:${port}`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.closeRoom());

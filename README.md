@@ -14,7 +14,7 @@ Rút quẻ cầu duyên yêu cầu **đủ 50 công đức**, không trừ đi�
 
 Làm thêm việc gì cũng được cộng công đức. Đủ công đức thì thăng cấp "Hạt sen · bậc N". Mọi người kết nối cùng máy chủ đều vào **một phòng chung**: thấy nhân vật của nhau, đồng bộ vị trí, trang phục, trạng thái ngồi/lạy/thiền và trò chuyện qua nút 💬. Số người trong chùa là số kết nối thật. Có thêm 10 phật tử mô phỏng đi lại, tụng kinh, khấn bái và 3 ni cô cầm chổi quét dọn; họ có nhãn “Mô phỏng”, không tham gia chat, không tính vào số online hay bảng công đức. Các nhân vật mô phỏng hoạt động riêng trên từng trình duyệt.
 
-**Bảng công đức** nằm bên trái cạnh ban thờ: xếp hạng 5 người đang trong phòng có công đức cao nhất, hiển thị tên và số công đức. Bảng tự cập nhật khi điểm thay đổi hoặc có người vào/rời phòng; dòng của bạn được tô sáng nếu vào top 5. Công đức vẫn lấy từ dữ liệu lưu trên trình duyệt, chưa có xác thực chống gian lận điểm.
+**Bảng công đức** nằm bên trái cạnh ban thờ: xếp hạng 5 người đang trong phòng có công đức cao nhất, hiển thị tên và số công đức. Bảng tự cập nhật khi điểm thay đổi hoặc có người vào/rời phòng; dòng của bạn được tô sáng nếu vào top 5. Công đức được máy chủ kiểm tra; mỗi danh tính chỉ có một dòng xếp hạng dù mở nhiều tab. Danh tính bị khóa tích điểm sẽ không xuất hiện trên bảng.
 
 **Bảng cột mốc** nằm bên phải cạnh ban thờ, đánh dấu những mốc bạn đã đạt. Bấm 🏅 để xem tiến độ và sử dụng phần thưởng:
 
@@ -25,7 +25,7 @@ Làm thêm việc gì cũng được cộng công đức. Đủ công đức th�
 | 3.000 | Thiện Tâm | Viết lời nguyện và thả hoa đăng trên hồ sen bên phải cuối chùa |
 | 4.000 | Sen Vàng | Áo sen vàng, hào quang hoa sen và nghi thức dâng đèn trước Phật |
 
-Mở khóa không trừ điểm. Mốc đã đạt lưu riêng trên trình duyệt và được giữ khi tải lại trang. Xóa dữ liệu trình duyệt hoặc chuyển thiết bị sẽ không mang theo phần thưởng; hiện chưa có tài khoản để đồng bộ lâu dài. Áo, danh hiệu, hào quang và lời chào được đồng bộ cho người trong phòng. Hoa đăng/lễ đèn hiển thị chung trong 90 giây, giới hạn 20 lễ vật; máy chủ giữ các nghi thức gần nhất để người mới vào vẫn thấy, và giới hạn một nghi thức mỗi 10 giây cho mỗi phiên. Lời nguyện đi kèm hoa đăng là công khai trong phòng.
+Mở khóa không trừ điểm. Mốc đã đạt và công đức lưu trong sổ máy chủ, gắn với cookie định danh HttpOnly của trình duyệt. Tải lại trang hoặc đổi tên vẫn giữ dữ liệu; xóa cookie/chuyển thiết bị tạo danh tính mới từ 0. Chưa có đăng nhập để khôi phục danh tính cũ. Áo, danh hiệu, hào quang và lời chào được đồng bộ cho người trong phòng. Hoa đăng/lễ đèn hiển thị chung trong 90 giây, giới hạn 20 lễ vật; máy chủ giữ các nghi thức gần nhất để người mới vào vẫn thấy, và giới hạn một nghi thức mỗi 10 giây cho mỗi phiên. Lời nguyện đi kèm hoa đăng là công khai trong phòng.
 
 ## Chạy
 
@@ -46,13 +46,27 @@ PORT=8001 npm start
 
 Để dùng qua Internet, triển khai toàn bộ dự án trên hosting chạy được Node.js, chạy `npm start`, đặt biến `PORT` theo hosting. Chạy **một tiến trình máy chủ** để mọi người ở cùng phòng; dữ liệu phòng hiện nằm trong bộ nhớ của tiến trình. Proxy cần cho phép kết nối SSE lâu dài, tắt buffering cho `/api/events` và đặt thời gian chờ lớn hơn 15 giây. **GitHub Pages và `python3 -m http.server` chỉ phục vụ trang tĩnh, không hỗ trợ phòng chung/chat này.**
 
-Máy chủ phát trạng thái phòng tối đa 10 lần/giây, giữ 50 tin gần nhất để người mới vào đọc, giới hạn lời nhắn 240 ký tự và một tin/giây cho mỗi phiên. Mất mạng sẽ tự kết nối lại; tin chưa gửi vẫn nằm trong ô nhập. Tin nhắn và trạng thái phòng mất khi khởi động lại máy chủ, còn công đức lưu riêng trên trình duyệt. Chưa có đăng nhập hoặc chat riêng.
+Máy chủ phát trạng thái phòng tối đa 10 lần/giây, giữ 50 tin gần nhất để người mới vào đọc, giới hạn lời nhắn 240 ký tự và một tin/giây cho mỗi phiên. Mất mạng sẽ tự kết nối lại; tin chưa gửi vẫn nằm trong ô nhập. Tin nhắn và trạng thái phòng mất khi khởi động lại máy chủ, còn công đức và khóa chống gian lận lưu trong sổ dữ liệu máy chủ nếu tệp dữ liệu vẫn được giữ. Chưa có đăng nhập hoặc chat riêng.
 
 Kiểm tra máy chủ (hai kết nối thật, đồng bộ, chat, kết nối lại và kiểm tra dữ liệu):
 
 ```bash
 npm test
 ```
+
+## Chống tích công đức bất thường
+
+- Trình duyệt chỉ gửi **loại hoạt động**, không tự quyết định số điểm. Máy chủ ghi nhận điểm, tiến độ 108 hạt, cấp độ và phần thưởng.
+- Lạy 3 lạy: +3, ít nhất 4 giây giữa hai lần; tụng kinh: +1, ít nhất 2,5 giây; thiền: +1, ít nhất 9,5 giây.
+- Dâng lễ: +5, cách nhau 10 giây. Giao diện lần hạt tối đa 4 lần/giây, máy chủ kiểm tra từng hạt; đủ 108 hạt mới được +20.
+- Khấn được +5 một lần/ngày và 3 quẻ cầu duyên đầu ngày được +2/quẻ, tính theo ngày Việt Nam. Tải lại trang không làm mới các giới hạn này.
+- Tự gửi tổng điểm giả/số điểm tự chọn hoặc tăng vượt 180 điểm trong 60 giây: đưa công đức, tiến độ và phần thưởng về 0, khóa tích điểm và hiện cảnh báo riêng cho danh tính đó.
+- Một lần thao tác sớm chỉ nhận nhắc chờ, không bị reset. Gửi ít nhất 12 yêu cầu sớm trong 2 giây mới bị khóa do spam. Nhiều tab dùng chung điểm, giới hạn và khóa.
+- Khi chuyển từ bản cũ, **toàn bộ điểm localStorage chưa xác thực không được nhập lại**. Danh tính mới bắt đầu từ 0; không thể kết luận điểm cũ nào là hợp lệ chỉ từ con số trong ảnh.
+
+Sổ dữ liệu mặc định là `.data/merit-ledger.json`, ghi nguyên tử, không đưa vào Git và không được phục vụ qua HTTP. Có thể đặt `MERIT_DATA_FILE` trỏ tới tệp trên ổ đĩa lưu trữ bền vững. Điểm và trạng thái khóa được khôi phục khi khởi động lại với cùng tệp.
+
+**Render Free không có ổ đĩa bền vững:** tệp dữ liệu có thể mất khi deploy, restart hoặc ngủ; khi đó điểm và khóa cũ không thể phục hồi. Muốn giữ lâu dài trên hosting, cần chuyển sổ dữ liệu sang cơ sở dữ liệu bền vững hoặc gắn ổ đĩa persistent và đặt `MERIT_DATA_FILE`. Không thể khóa vĩnh viễn một con người khi chưa có đăng nhập: xóa cookie tạo danh tính mới, nhưng không khôi phục điểm cũ và vẫn chịu các giới hạn tốc độ của máy chủ.
 
 ## Điều khiển
 
@@ -73,6 +87,9 @@ npm test
 - `milestones.js`: bốn cột mốc, điều kiện mở khóa trang phục và nghi thức
 - `server.mjs`: máy chủ HTTP, phòng chung realtime qua SSE, API cập nhật nhân vật và chat
 - `server.test.mjs`: kiểm thử tích hợp máy chủ
+- `merit-guard.mjs`: luật tính điểm, giới hạn tốc độ và khóa gian lận
+- `merit-ledger.mjs`: lưu sổ công đức máy chủ
+- `merit-guard.test.mjs`: kiểm thử điểm hợp lệ, gian lận, nhiều tab và lưu/khôi phục khóa
 - `lib/`: Three.js r160, để sẵn trong repo nên không phụ thuộc CDN
 
 Mọi mô hình đều dựng từ khối hình học trong code, không có file 3D hay ảnh nào bên ngoài.

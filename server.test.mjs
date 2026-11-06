@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
+import { createMeritAccount } from './merit-guard.mjs';
 import { createRoomServer } from './server.mjs';
 import { getTopMerit } from './room.js';
 import { earnedMerit, milestoneTier, canUseRitual } from './milestones.js';
@@ -32,18 +34,22 @@ test('merit leaderboard: top five, stable ties, empty room and no snapshot mutat
 });
 
 test('shared room: presence, state, chat, reconnect, validation and public assets', async t => {
-  const server = createRoomServer();
+  const accounts = new Map();
+  const server = createRoomServer({ accounts });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => server.closeRoom());
   const base = `http://127.0.0.1:${server.address().port}`;
-  async function post(route, data, session) {
+  async function post(route, data, session, cookie) {
     return fetch(`${base}/api/${route}${session ? '?id=' + session.id : ''}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...(session ? { Authorization: `Bearer ${session.token}` } : {}) },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}), ...(session ? { Authorization: `Bearer ${session.token}` } : {}) },
       body: JSON.stringify(data),
     });
   }
-  async function join(name) {
-    const res = await post('join', { name });
+  async function join(name, score = 0) {
+    // Trusted fixture: existing verified points are seeded in the server ledger, never by the client.
+    const identity = randomBytes(24).toString('hex');
+    const account = createMeritAccount(Date.now()); account.merit = score; account.rewardMerit = score; accounts.set(identity, account);
+    const res = await post('join', { name, protocol: 2 }, null, 'chuaha_identity=' + identity);
     assert.equal(res.status, 201);
     return res.json();
   }
@@ -77,7 +83,7 @@ test('shared room: presence, state, chat, reconnect, validation and public asset
       },
     };
   }
-  const alice = await join('An Nhiên'), bob = await join('Tâm Duyên');
+  const alice = await join('An Nhiên', 87), bob = await join('Tâm Duyên');
   const a = await stream(alice);
   assert.equal((await a.next('welcome')).players.length, 1);
   const b = await stream(bob);
@@ -120,21 +126,23 @@ test('shared room: presence, state, chat, reconnect, validation and public asset
   assert.equal(sanitized.merit, 0);
 
   assert.equal((await post('ritual', { type: 'lamp' }, bob)).status, 403);
-  await new Promise(resolve => setTimeout(resolve, 50));
-  assert.equal((await post('state', { name: 'Sen Vàng', merit: 4000, robe: 0xffd15c, greeting: true }, bob)).status, 200);
-  const rewarded = (await a.next('players', p => p.some(person => person.merit === 4000))).find(p => p.id === bob.id);
+  const gold = await join('Sen Vàng', 4000);
+  const g = await stream(gold); await g.next('welcome');
+  assert.equal((await post('state', { name: 'Sen Vàng', robe: 0xffd15c, greeting: true }, gold)).status, 200);
+  const rewarded = (await a.next('players', p => p.some(person => person.greeting))).find(p => p.id === gold.id);
   assert.equal(rewarded.robe, 0xffd15c);
   assert.equal(rewarded.rewardMerit, 4000);
   assert.equal(rewarded.greeting, true);
-  assert.equal((await post('ritual', { type: 'lamp', wish: 'Bình an' }, bob)).status, 200);
+  assert.equal((await post('ritual', { type: 'lamp', wish: 'Bình an' }, gold)).status, 200);
   const ritual = await a.next('ritual');
   assert.equal(ritual.type, 'lamp');
   assert.equal(ritual.name, 'Sen Vàng');
-  assert.equal((await post('ritual', { type: 'lantern' }, bob)).status, 429);
-  assert.equal((await post('ritual', { type: 'unknown' }, bob)).status, 403);
+  assert.equal((await post('ritual', { type: 'lantern' }, gold)).status, 429);
+  assert.equal((await post('ritual', { type: 'unknown' }, gold)).status, 403);
   await new Promise(resolve => setTimeout(resolve, 50));
-  assert.equal((await post('state', { merit: 10, robe: 0xffd15c }, bob)).status, 200);
-  const retained = (await a.next('players', p => p.some(person => person.id === bob.id && person.merit === 10))).find(p => p.id === bob.id);
+  assert.equal((await post('state', { merit: 10, robe: 0xffd15c }, gold)).status, 200);
+  const retained = (await a.next('players', p => p.some(person => person.id === gold.id && !person.greeting))).find(p => p.id === gold.id);
+  assert.equal(retained.merit, 4000); // A lower client value cannot replace server points either.
   assert.equal(retained.rewardMerit, 4000);
   assert.equal(retained.robe, 0xffd15c);
   const observer = await stream(await join('Người mới'));
@@ -146,7 +154,7 @@ test('shared room: presence, state, chat, reconnect, validation and public asset
   for (const asset of ['/', '/game.js', '/room.js', '/milestones.js', '/work-fortunes.js', '/style.css', '/lib/three.module.js']) {
     assert.equal((await fetch(base + asset)).status, 200);
   }
-  for (const secret of ['/.git/config', '/server.mjs', '/package.json', '/lib/../server.mjs']) {
+  for (const secret of ['/.git/config', '/server.mjs', '/package.json', '/lib/../server.mjs', '/.data/merit-ledger.json', '/merit-guard.mjs', '/merit-ledger.mjs']) {
     assert.equal((await fetch(base + secret)).status, 404);
   }
 });
