@@ -56,10 +56,11 @@ npm test
 
 ## Chống tích công đức bất thường
 
-- Các nút chính có đếm ngược và bị vô hiệu hóa trong thời gian chờ: lạy Phật 6 giây, mở tràng hạt 1,5 giây, khởi động lại tụng kinh/thiền 3 giây, mở mục cầu duyên 2 giây. Dâng lễ xong chờ 10 giây, đồng bộ theo thời gian máy chủ. Có thể dừng ngay một hoạt động đang chạy; sau khi dừng cần chờ trước khi bật lại.
+- Các nút chính có đếm ngược và bị vô hiệu hóa trong thời gian chờ: lạy Phật chờ theo công đức sau khi lạy xong (6 giây ở mức dưới 1.000), mở tràng hạt 1,5 giây, khởi động lại tụng kinh/thiền 3 giây, mở mục cầu duyên 2 giây. Dâng lễ xong chờ 10 giây, đồng bộ theo thời gian máy chủ. Có thể dừng ngay một hoạt động đang chạy; sau khi dừng cần chờ trước khi bật lại.
 - Các nút rút quẻ chờ 3 giây giữa hai lần, gieo âm dương chờ 2 giây, nút lần hạt bị khóa khi đang gửi yêu cầu và giữa hai lần bấm. Không thể dâng lễ hoặc bắt đầu tụng kinh/thiền khi đang lạy.
 - Trình duyệt chỉ gửi **loại hoạt động**, không tự quyết định số điểm. Máy chủ ghi nhận điểm, tiến độ 108 hạt, cấp độ và phần thưởng.
-- Lạy 3 lạy: +3, ít nhất 4 giây giữa hai lần; tụng kinh: +1, ít nhất 2,5 giây; thiền: +1, ít nhất 9,5 giây.
+- Lạy 3 lạy: +3. Thời gian chờ sau mỗi lượt = `min(300, 6 × 2^floor(công_đức / 1000))` giây, dùng số điểm máy chủ đã xác thực sau khi cộng thưởng. Các mức dưới 1.000 / 1.000 / 2.000 / 3.000 / 4.000 / 5.000 / từ 6.000 tương ứng 6 / 12 / 24 / 48 / 96 / 192 / 300 giây. Nếu công đức tăng sang mốc mới bằng hoạt động khác trong khi chờ, thời gian chờ cũng tăng theo. Tải lại trang hoặc mở tab khác không làm mới thời gian chờ. Lượt đầu được thực hiện ngay, máy chủ chỉ ghi nhận sau thời gian đủ để hoàn thành 3 lạy.
+- Tụng kinh: +1, ít nhất 2,5 giây; thiền: +1, ít nhất 9,5 giây.
 - Dâng lễ: +5, cách nhau 10 giây. Giao diện lần hạt tối đa 4 lần/giây, máy chủ kiểm tra từng hạt; đủ 108 hạt mới được +20.
 - Khấn được +5 một lần/ngày và 3 quẻ cầu duyên đầu ngày được +2/quẻ, tính theo ngày Việt Nam. Tải lại trang không làm mới các giới hạn này.
 - Tự gửi tổng điểm giả/số điểm tự chọn hoặc tăng vượt 180 điểm trong 60 giây: đưa công đức, tiến độ và phần thưởng về 0, khóa tích điểm và hiện cảnh báo riêng cho danh tính đó.

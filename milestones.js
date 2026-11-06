@@ -10,6 +10,12 @@ export function earnedMerit(merit, previous = 0) {
   return Math.max(valid(merit), valid(previous));
 }
 
+// Double every 1,000 verified points; cap at five minutes to keep worship usable.
+export function bowCooldownMs(merit) {
+  const step = Math.min(6, Math.floor(earnedMerit(merit) / 1000));
+  return Math.min(300000, 6000 * 2 ** step);
+}
+
 export function milestoneTier(merit) {
   return MILESTONES.filter(m => earnedMerit(merit) >= m.merit).length;
 }

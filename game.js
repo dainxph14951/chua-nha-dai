@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from './lib/RoomEnvironment.js';
 import { SharedRoom, getTopMerit } from './room.js';
 import { WORK_FORTUNES } from './work-fortunes.js';
-import { MILESTONES, milestoneTier } from './milestones.js';
+import { MILESTONES, milestoneTier, bowCooldownMs } from './milestones.js';
 
 /* =========================================================
    Chùa Hà Online 3D — game.js
@@ -831,6 +831,8 @@ function applyMeritStatus(status, live = true) {
   P.merit = status.merit; P.rewardMerit = status.rewardMerit;
   P.beads = status.beads; P.rounds = status.rounds; P.blocked = status.blocked;
   offerReadyAt = performance.now() + (status.offerWaitMs ?? 0);
+  bowReadyAt = performance.now() + (status.bowWaitMs ?? 0);
+  if (!live || status.blocked) actionReadyAt.delete('bow');
   store.set('merit', P.merit); store.set('rewardMerit', P.rewardMerit);
   store.set('beads', P.beads); store.set('rounds', P.rounds);
   const selectedRobe = ROBES.find(r => r.c === P.robe);
@@ -1166,9 +1168,9 @@ $('#bSound').onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); 
 let nearCushion = null, beadMode = false, beadAuto = false, beadAutoT = 0;
 let chanting = false, chantT = 0, chantIdx = 0;
 let medStart = 0, medAcc = 0;
-let offerPending = false, offerReadyAt = 0;
+let offerPending = false, offerReadyAt = 0, bowReadyAt = 0;
 const CHANT = ['Nam', 'mô', 'A', 'Di', 'Đà', 'Phật'];
-const ACTION_DELAYS = { bow: 6000, beads: 1500, chant: 3000, medi: 3000, offer: 1500, que: 2000 };
+const ACTION_DELAYS = { beads: 1500, chant: 3000, medi: 3000, offer: 1500, que: 2000 };
 const actionReadyAt = new Map();
 const timedButtons = new Map();
 function isActionActive(action) {
@@ -1176,6 +1178,7 @@ function isActionActive(action) {
 }
 function actionWait(action) {
   return Math.max(0, (actionReadyAt.get(action) ?? 0) - performance.now(),
+    action === 'bow' ? bowReadyAt - performance.now() : 0,
     action === 'offer' ? offerReadyAt - performance.now() : 0);
 }
 function actionBusy(action) {
@@ -1265,7 +1268,7 @@ for (const [action, run] of Object.entries(ACTIONS)) {
     if (!player) return false;
     const active = isActionActive(action);
     if (!active && (actionWait(action) > 0 || actionBusy(action))) return false;
-    actionReadyAt.set(action, performance.now() + ACTION_DELAYS[action]);
+    actionReadyAt.set(action, performance.now() + (action === 'bow' ? bowCooldownMs(P.merit) : ACTION_DELAYS[action]));
     run(); updateActionButtons();
     return true;
   };

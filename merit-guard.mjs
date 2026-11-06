@@ -1,4 +1,5 @@
 // Only this module decides how many points an activity earns.
+import { bowCooldownMs } from './milestones.js';
 export const MERIT_LIMIT_PER_MINUTE = 180;
 const RULES = {
   bow: { points: 3, interval: 4000, initialWait: true },
@@ -19,7 +20,9 @@ export function createMeritAccount(now) {
 export function meritStatus(account, now) {
   return { merit: account.merit, rewardMerit: account.rewardMerit, beads: account.beads,
     rounds: account.rounds, blocked: account.blocked, reason: account.reason, revision: account.revision,
-    offerWaitMs: Math.max(0, (account.last.offer ?? now - 10000) + 10000 - now) };
+    offerWaitMs: Math.max(0, (account.last.offer ?? now - 10000) + 10000 - now),
+    bowWaitMs: account.last.bow === undefined ? 0 : Math.max(0, account.last.bow + bowCooldownMs(account.merit) - now),
+    bowCooldownMs: bowCooldownMs(account.merit) };
 }
 
 export function lockMerit(account, reason) {
@@ -41,7 +44,8 @@ export function performMeritAction(account, action, now) {
   if (!rule) return { status: 400, error: 'Hoạt động tích công đức không hợp lệ.' };
   if (action === 'fortune' && account.merit < 50) return { status: 403, error: 'Cần đủ 50 công đức để rút quẻ cầu duyên.' };
   const last = account.last[action] ?? (rule.initialWait ? account.createdAt : null);
-  if (last !== null && now - last < rule.interval) return tooFast(account, now, rule.interval - (now - last));
+  const interval = action === 'bow' && account.last.bow !== undefined ? bowCooldownMs(account.merit) : rule.interval;
+  if (last !== null && now - last < interval) return tooFast(account, now, interval - (now - last));
   const day = dayInVietnam(now);
   let points = rule.points;
   if (action === 'pray' && account.prayerDay === day) points = 0;

@@ -7,6 +7,30 @@ import { createMeritAccount, performMeritAction, meritStatus } from './merit-gua
 import { openMeritLedger } from './merit-ledger.mjs';
 import { createRoomServer } from './server.mjs';
 import { getTopMerit } from './room.js';
+import { bowCooldownMs } from './milestones.js';
+
+test('exponential bow delay: exact thousand-point boundaries and five-minute ceiling', () => {
+  for (const [merit, ms] of [[0, 6000], [999, 6000], [1000, 12000], [1999, 12000], [2000, 24000],
+    [3000, 48000], [4000, 96000], [5000, 192000], [6000, 300000], [1e9, 300000], [NaN, 6000]]) {
+    assert.equal(bowCooldownMs(merit), ms);
+  }
+});
+
+test('bow cooldown is enforced server-side, survives reload and grows when merit crosses a threshold', () => {
+  const account = createMeritAccount(100000); account.merit = 999;
+  assert.equal(performMeritAction(account, 'bow', 104500).awarded, 3);
+  assert.equal(account.merit, 1002);
+  assert.equal(meritStatus(account, 104500).bowWaitMs, 12000);
+  const restored = JSON.parse(JSON.stringify(account));
+  assert.equal(performMeritAction(restored, 'bow', 116499).status, 429);
+  assert.equal(performMeritAction(restored, 'bow', 116500).awarded, 3);
+  restored.merit = 2000;
+  assert.equal(meritStatus(restored, 116500).bowWaitMs, 24000);
+  assert.equal(performMeritAction(restored, 'bow', 140499).status, 429);
+  assert.equal(performMeritAction(restored, 'bow', 140500).awarded, 3);
+  assert.equal(restored.blocked, false);
+  assert.equal(meritStatus(createMeritAccount(100000), 100000).bowWaitMs, 0);
+});
 
 test('normal activities: measured time, full bead sequence, no false lock for a single fast click', () => {
   const account = createMeritAccount(100000);
@@ -41,7 +65,7 @@ test('two minutes of fast legitimate play stays below the fraud threshold', () =
   for (let now = 0; now <= 120000; now += 250) {
     assert.equal(performMeritAction(account, 'bead', now).status, 200);
     if (now % 10000 === 0) assert.equal(performMeritAction(account, 'offer', now).status, 200);
-    if (now > 0 && now % 4500 === 0) assert.equal(performMeritAction(account, 'bow', now).status, 200);
+    if (now > 0 && now % 6000 === 0) assert.equal(performMeritAction(account, 'bow', now).status, 200);
     if (now > 0 && now % 4000 === 0) assert.equal(performMeritAction(account, 'chant', now).status, 200);
     if (now > 0 && now % 10000 === 0) assert.equal(performMeritAction(account, 'meditate', now).status, 200);
   }
