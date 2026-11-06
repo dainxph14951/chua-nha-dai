@@ -11,6 +11,8 @@
 
 Làm thêm việc gì cũng được cộng công đức. Đủ công đức thì thăng cấp "Hạt sen · bậc N". Mọi người kết nối cùng máy chủ đều vào **một phòng chung**: thấy nhân vật của nhau, đồng bộ vị trí, trang phục, trạng thái ngồi/lạy/thiền và trò chuyện qua nút 💬. Số người trong chùa là số kết nối thật, không có bot mô phỏng.
 
+**Bảng công đức** nằm bên trái cạnh ban thờ: xếp hạng 5 người đang trong phòng có công đức cao nhất, hiển thị tên và số công đức. Bảng tự cập nhật khi điểm thay đổi hoặc có người vào/rời phòng; dòng của bạn được tô sáng nếu vào top 5. Công đức vẫn lấy từ dữ liệu lưu trên trình duyệt, chưa có xác thực chống gian lận điểm.
+
 ## Chạy
 
 Cần **Node.js 20 trở lên**, không cần cài thư viện hay build:

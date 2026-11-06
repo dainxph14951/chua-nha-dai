@@ -19,6 +19,7 @@ function sanitize(input = {}) {
     robe: ROBES.includes(input.robe) ? input.robe : ROBES[0],
     hair: HAIRS.includes(input.hair) ? input.hair : 'ngan',
     level: Math.floor(number(input.level, 1, 999, 1)),
+    merit: Math.floor(number(input.merit, 0, 1_000_000_000, 0)),
     x: number(input.x, -13.2, 13.2, 0), z: number(input.z, -13.6, 15.2, 13.5),
     yaw: number(input.yaw, -Math.PI * 2, Math.PI * 2, Math.PI),
     state: ['stand', 'walk', 'sit'].includes(input.state) ? input.state : 'stand',

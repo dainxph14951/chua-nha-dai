@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from './lib/RoomEnvironment.js';
-import { SharedRoom } from './room.js';
+import { SharedRoom, getTopMerit } from './room.js';
 
 /* =========================================================
    Chùa Hà Online 3D — game.js
@@ -276,6 +276,65 @@ const signBoard = mesh(new THREE.PlaneGeometry(2, 1), new THREE.MeshStandardMate
 mesh(new THREE.BoxGeometry(2.1, 1.1, 0.08), M.wood, 0, 1.9, 0, sign);
 sign.rotation.y = -0.35;
 PILLARS.push({ x: 7.2, z: -14.6, r: 0.4 }, { x: 4.4, z: -15.2, r: 0.7 }, { x: -5.2, z: -15.4, r: 0.9 });
+
+/* ---------------- Bảng công đức cạnh trái ban thờ ---------------- */
+const meritBoard = new THREE.Group();
+meritBoard.position.set(-8.6, 0, -14.4);
+meritBoard.rotation.y = 0.18;
+scene.add(meritBoard);
+for (const x of [-1.65, 1.65]) {
+  mesh(new THREE.BoxGeometry(0.2, 3.2, 0.24), M.wood, x, 1.6, 0, meritBoard);
+  mesh(new THREE.BoxGeometry(0.85, 0.16, 0.85), M.wood, x, 0.08, 0, meritBoard);
+}
+mesh(new THREE.BoxGeometry(4.9, 5.5, 0.22), M.goldSoft, 0, 3.45, 0, meritBoard);
+mesh(new THREE.BoxGeometry(4.76, 5.36, 0.25), M.wood, 0, 3.45, 0.02, meritBoard);
+const meritBoardCanvas = document.createElement('canvas');
+meritBoardCanvas.width = 1024; meritBoardCanvas.height = 1152;
+const meritBoardTexture = new THREE.CanvasTexture(meritBoardCanvas);
+meritBoardTexture.colorSpace = THREE.SRGBColorSpace;
+meritBoardTexture.anisotropy = 4;
+mesh(new THREE.PlaneGeometry(4.6, 5.2), new THREE.MeshBasicMaterial({ map: meritBoardTexture }), 0, 3.45, 0.16, meritBoard);
+PILLARS.push({ x: -10.25, z: -14.4, r: 0.55 }, { x: -6.95, z: -14.4, r: 0.55 });
+let meritBoardKey = '', meritBoardPlayers = [], meritBoardSelfId = '', meritBoardStatus = 'waiting';
+function renderMeritBoard(players, selfId, status = 'connected', force = false) {
+  const top = getTopMerit(players);
+  const key = JSON.stringify([status, selfId, top.map(p => [p.id, p.name, p.merit])]);
+  if (!force && key === meritBoardKey) return;
+  meritBoardKey = key; meritBoardPlayers = players; meritBoardSelfId = selfId; meritBoardStatus = status;
+  const ctx = meritBoardCanvas.getContext('2d');
+  const bg = ctx.createLinearGradient(0, 0, 0, 1152);
+  bg.addColorStop(0, '#411b12'); bg.addColorStop(1, '#1e100d');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, 1024, 1152);
+  ctx.strokeStyle = '#be914b'; ctx.lineWidth = 3; ctx.strokeRect(20, 20, 984, 1112);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#ffe2a3';
+  ctx.font = 'bold 66px "Noto Serif", serif'; ctx.fillText('BẢNG CÔNG ĐỨC', 512, 126);
+  ctx.font = '30px "Be Vietnam Pro", sans-serif';
+  ctx.fillStyle = '#d9bc91'; ctx.fillText('TOP 5 · PHẬT TỬ TRONG PHÒNG', 512, 187);
+  ctx.strokeStyle = '#806039'; ctx.beginPath(); ctx.moveTo(68, 226); ctx.lineTo(956, 226); ctx.stroke();
+  ctx.textAlign = 'left'; ctx.font = '26px "Be Vietnam Pro", sans-serif'; ctx.fillText('HẠNG / PHÁP DANH', 75, 281);
+  ctx.textAlign = 'right'; ctx.fillText('CÔNG ĐỨC', 950, 281);
+  for (let i = 0; i < 5; i++) {
+    const y = 370 + i * 130, entry = top[i];
+    if (entry?.id === selfId) { ctx.fillStyle = '#65401e'; ctx.fillRect(48, y - 57, 928, 103); }
+    ctx.textAlign = 'center'; ctx.fillStyle = ['#ffda76', '#e1d9c9', '#d6a179', '#bcaa91', '#bcaa91'][i];
+    ctx.font = 'bold 46px "Noto Serif", serif'; ctx.fillText(String(i + 1), 100, y + 4);
+    ctx.textAlign = 'left'; ctx.font = '600 34px "Be Vietnam Pro", sans-serif';
+    ctx.fillStyle = entry ? '#fff1d8' : '#8c7562';
+    let name = entry?.name || 'Chưa có phật tử';
+    while (ctx.measureText(name).width > 490 && name.length > 1) name = name.slice(0, -2) + '…';
+    ctx.fillText(name, 157, y);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#ffe2a3';
+    ctx.font = 'bold 36px "Be Vietnam Pro", sans-serif';
+    ctx.fillText(entry ? (entry.merit ?? 0).toLocaleString('vi-VN') : '—', 950, y);
+  }
+  ctx.textAlign = 'center'; ctx.fillStyle = '#d9bc91';
+  ctx.font = '26px "Be Vietnam Pro", sans-serif';
+  ctx.fillText(status === 'connected' ? 'Cập nhật trực tiếp · Chỉ tính người đang trong phòng'
+    : status === 'waiting' ? 'Vào chùa để xem bảng xếp hạng' : 'Đang kết nối phòng chung…', 512, 1080);
+  meritBoardTexture.needsUpdate = true;
+}
+renderMeritBoard([], '', 'waiting');
+document.fonts?.ready?.then(() => renderMeritBoard(meritBoardPlayers, meritBoardSelfId, meritBoardStatus, true)).catch(() => {});
 
 /* -------- Candles, incense, offerings -------- */
 const flames = [];
@@ -674,6 +733,7 @@ function clearRemotePlayers() {
 }
 function syncRoomPlayers(players, selfId) {
   $('#online').textContent = players.length;
+  renderMeritBoard(players, selfId);
   const present = new Set();
   for (const data of players) {
     if (data.id === selfId) continue;
@@ -742,7 +802,7 @@ function appendChat(entry, live) {
 }
 const room = new SharedRoom({
   getState: () => ({
-    name: P.name, robe: P.robe, hair: P.hair, level: levelOf(P.merit),
+    name: P.name, robe: P.robe, hair: P.hair, level: levelOf(P.merit), merit: P.merit,
     x: player.pos.x, z: player.pos.z,
     yaw: Math.atan2(Math.sin(player.root.rotation.y), Math.cos(player.root.rotation.y)),
     state: player.state, meditating: player.meditating, bowQueue: player.bowQueue, bowT: player.bowT,
@@ -753,7 +813,7 @@ const room = new SharedRoom({
     $('#roomStatus').textContent = status === 'connected' ? 'Phòng chung · Đã kết nối' : status === 'connecting' ? 'Đang vào phòng chung…' : 'Mất kết nối · Đang thử lại…';
     $('#roomStatus').dataset.status = status;
     $('#chatSend').disabled = status !== 'connected';
-    if (status !== 'connected') { $('#online').textContent = '—'; clearRemotePlayers(); }
+    if (status !== 'connected') { $('#online').textContent = '—'; clearRemotePlayers(); renderMeritBoard([], '', status); }
   },
 });
 function toggleChat(open) {

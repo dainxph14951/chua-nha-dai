@@ -1,4 +1,9 @@
 // One shared room on the same server for every visitor and device.
+export function getTopMerit(players) {
+  return [...players].sort((a, b) => (b.merit ?? 0) - (a.merit ?? 0)
+    || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).slice(0, 5);
+}
+
 export class SharedRoom {
   constructor({ getState, onPlayers, onChat, onStatus }) {
     Object.assign(this, { getState, onPlayers, onChat, onStatus });
