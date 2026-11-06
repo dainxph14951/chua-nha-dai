@@ -1060,8 +1060,8 @@ $('#enter').onclick = () => {
       player.bowQueue = old.bowQueue; player.bowT = old.bowT;
     }
     else {
-      player.pos.set(rand(-0.7, 0.7), 0, 22.8); player.root.rotation.y = 0;
-      cam.yaw = Math.PI; cam.pitch = 0.5; cam.dist = 6.5;
+      player.pos.set(rand(-0.7, 0.7), 0, 22.8); player.faceTo(0, 0);
+      cam.yaw = 0; cam.pitch = 0.5; cam.dist = 6.5;
     }
     player.onBow = onPlayerBow;
   } else {
@@ -1182,8 +1182,8 @@ const boardGames = setupBoardGames({
   onVisit: () => {
     if (!player) { toast('Vào chùa trước để ra khuôn viên nhé.'); return; }
     stopAll(); if (player.cushion) player.stand();
-    player.pos.set(0, 0, 22.8); player.root.rotation.y = 0;
-    cam.yaw = Math.PI; cam.pitch = 0.5; cam.dist = 6.5;
+    player.pos.set(0, 0, 22.8); player.faceTo(0, 0);
+    cam.yaw = 0; cam.pitch = 0.5; cam.dist = 6.5;
   },
   onSeat: (table, seat, { restoring = false } = {}) => {
     if (!player || restoring) return;
