@@ -22,6 +22,23 @@ button{font:inherit;cursor:pointer}
 #title h1{font-family:"Noto Serif",serif;font-size:20px;color:var(--gold2);text-shadow:0 2px 8px rgba(0,0,0,.7)}
 #title .on{font-size:12px;color:#cfe;margin-top:2px;text-shadow:0 1px 4px #000}
 #title .on b{color:#5fe08a}
+#roomStatus{font-size:11px;color:var(--gold2);margin-top:3px;text-shadow:0 1px 4px #000}
+#roomStatus[data-status="offline"]{color:#ffb5a8}
+#roomStatus[data-status="connected"]{color:#b6f2cd}
+#chat{left:12px;bottom:178px;width:min(340px,calc(100vw - 24px));background:rgba(30,12,14,.94);border:1px solid var(--line);border-radius:16px;padding:12px;pointer-events:auto;backdrop-filter:blur(8px);font-size:12px;z-index:6}
+#chat[hidden]{display:none}
+.chat-heading{display:flex;align-items:center;justify-content:space-between;color:var(--gold2);gap:8px}
+#chatClose{border:0;background:none;color:var(--gold2);padding:6px;font-size:18px}
+#chatLog{height:min(200px,25dvh);overflow-y:auto;overflow-wrap:anywhere;touch-action:pan-y;user-select:text;-webkit-user-select:text;line-height:1.6;margin:6px 0 10px;overscroll-behavior:contain}
+#chatLog p{margin:5px 0}
+#chatLog strong{color:var(--gold2)}
+.chat-system{color:#c2ad98;font-size:11px}
+#chatForm{display:flex;gap:6px}
+#chatInput{min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;padding:9px;background:#fff6e4;color:var(--ink);font:inherit;font-size:16px;touch-action:auto;user-select:text;-webkit-user-select:text}
+#chatSend{border:0;border-radius:9px;padding:9px 12px;background:var(--gold);color:var(--ink);font-weight:700}
+#chatSend:disabled{opacity:.45;cursor:default}
+#chatError{color:#ffb5a8;font-size:11px;margin-top:5px}
+@media(max-height:500px){#chat{bottom:12px;left:160px;width:min(340px,calc(100vw - 180px))}#chatLog{height:90px}}
 #feed{font-size:12.5px;margin-top:4px;color:#fff;text-shadow:0 1px 4px #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .3s}
 #side{top:70px;right:12px;display:flex;flex-direction:column;gap:8px}
 .ib{width:42px;height:42px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:#fff;font-size:18px;display:grid;place-items:center;backdrop-filter:blur(6px)}

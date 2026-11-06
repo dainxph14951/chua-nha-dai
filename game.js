@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from './lib/RoomEnvironment.js';
+import { SharedRoom } from './room.js';
 
 /* =========================================================
    Chùa Hà Online 3D — game.js
@@ -470,9 +471,14 @@ class Avatar {
   }
   setName(name, level) {
     this.name = name; this.level = level;
-    this.root.remove(this.tag); this.tag.material.map.dispose();
+    this.root.remove(this.tag); this.tag.material.map.dispose(); this.tag.material.dispose();
     this.tag = nameSprite(name, this.isPlayer ? '#ffd98a' : '#ffffff', 'Hạt sen · bậc ' + level);
     this.tag.position.y = this.state === 'sit' ? 1.95 : 2.15; this.root.add(this.tag);
+  }
+  dispose() {
+    if (this.cushion?.taken === this) this.cushion.taken = null;
+    scene.remove(this.root);
+    this.tag.material.map.dispose(); this.tag.material.dispose(); this.aura.material.dispose();
   }
   setLook(robe) { this.robeMesh.material = robeMat(robe); }
   get pos() { return this.root.position; }
@@ -639,108 +645,139 @@ $('#enter').onclick = () => {
   if (!player || changedHair) {
     const old = player;
     player = new Avatar({ name: n, robe: robeSel, hair: hairSel, isPlayer: true, level: levelOf(P.merit) });
-    if (old) { player.pos.copy(old.pos); player.root.rotation.y = old.root.rotation.y; if (old.cushion) old.cushion.taken = null; scene.remove(old.root); }
-    else { player.pos.set(0, 0, 13.5); player.faceAltar(); }
+    if (old) {
+      player.pos.copy(old.pos); player.root.rotation.y = old.root.rotation.y;
+      old.dispose();
+      if (old.cushion) player.sit(old.cushion);
+      player.meditating = old.meditating;
+      player.bowQueue = old.bowQueue; player.bowT = old.bowT;
+    }
+    else { player.pos.set(rand(-1.3, 1.3), 0, rand(12.5, 14)); player.faceAltar(); }
     player.onBow = onPlayerBow;
   } else {
     player.setLook(robeSel); player.setName(n, levelOf(P.merit));
   }
   renderProfile();
   if (!started) {
-    started = true; bellSound(); feed(`🙏 ${n} vừa bước vào chánh điện`);
+    started = true; bellSound(); room.connect();
     toast('Nam mô A Di Đà Phật 🙏');
   }
 };
 $('#bLook').onclick = () => { $('#inName').value = P.name; robeSel = P.robe; hairSel = P.hair; syncStart(); openModal('start'); };
 
-/* ---------------- NPCs ---------------- */
-const NPC_NAMES = ['Tâm Duyên', 'Diệu Hạnh', 'Minh Tuệ', 'Thiện An', 'Như Ý', 'An Nhiên', 'Minh Châu', 'Tuệ Tâm', 'Thanh Tịnh', 'Bảo Ngọc', 'Hoài An', 'Gia Hân', 'Đức Minh', 'Ngọc Diệp', 'Phương Thảo', 'Khánh Linh', 'Hữu Phước', 'Diệu Liên', 'Nhật Minh', 'Quang Huy', 'Mai Anh', 'Thu Hà', 'Trúc Lam', 'Hải Đăng', 'Vân Khánh', 'Bình An', 'Duyên Lành', 'Như Nguyện', 'Tâm Bình', 'Hạnh Nguyên', 'Thích Debug', 'Thích Deploy', 'Thích Merge', 'Thích Ngủ Nướng', 'Thích Trà Sữa', 'Thích Cà Phê', 'Ế Bền Vững', 'Cầu Được Ước Thấy', 'FA Lâu Năm', 'Mong Có Bồ', 'Dev Cô Đơn', 'Thích Refactor', 'Thích Hotfix', 'Senior Ế', 'Intern Cầu Duyên', 'Thích Code Đêm', 'Bé Na', 'Cô Ba', 'Chú Tư', 'Anh Hai', 'Thích Ăn Chay', 'Thích Ôn Thi', 'Phúc An', 'Lan Chi', 'Bảo Anh', 'Kim Ngân', 'Thanh Tâm', 'Tuấn Kiệt', 'Hồng Nhung', 'Thích Tụng Kinh'];
-const NPC_ROBES = [0x5d7fb0, 0x5d7fb0, 0x6a88b8, 0x8a5a3a, 0x8d8d92, 0xf0a6b4, 0xb9a3dc, 0xeee4d0, 0x5d7fb0];
-const npcs = [];
-const freeCushions = () => CUSHIONS.filter((c) => !c.taken);
-function spawnNPC(seated) {
-  const name = pick(NPC_NAMES);
-  const a = new Avatar({ name, robe: pick(NPC_ROBES), hair: pick(['troc', 'troc', 'ngan', 'ngan', 'bui', 'bac']), skin: Math.floor(Math.random() * 3), level: Math.floor(rand(1, 7)) });
-  a.ai = { next: rand(2, 12), target: null, wait: 0 };
-  if (seated) { const fc = freeCushions(); a.sit(pick(fc)); }
-  else { a.pos.set(rand(-1.4, 1.4), 0, rand(-11, 13)); a.ai.target = randomWalkPoint(); }
-  npcs.push(a); return a;
+/* ---------------- Shared room / chat ---------------- */
+const remotePlayers = new Map();
+let unread = 0;
+function clearRemotePlayers() {
+  for (const remote of remotePlayers.values()) remote.avatar.dispose();
+  remotePlayers.clear();
 }
-function randomWalkPoint() {
-  const r = Math.random();
-  if (r < 0.5) return { x: rand(-1.4, 1.4), z: rand(-12.4, 13.5) };
-  if (r < 0.75) return { x: rand(-11.5, 11.5), z: rand(-13, -12) };
-  return { x: rand(-11.5, 11.5), z: rand(12.6, 14) };
-}
-for (let i = 0; i < 52; i++) spawnNPC(true);
-for (let i = 0; i < 7; i++) spawnNPC(false);
-
-const BOT_EVENTS = [
-  (n) => `📿 ${n} vừa tròn một chuỗi 108 hạt`,
-  (n) => `🎋 ${n} vừa xin được quẻ ${pick(['Thượng cát', 'Đại cát', 'Trung cát'])}`,
-  (n) => `🪷 ${n} vừa dâng ${pick(['hoa sen', 'mâm quả', 'nén hương', 'đôi nến'])}`,
-  (n) => `🙇 ${n} vừa thành tâm lạy Phật 3 lạy`,
-  (n) => `🌸 ${n} vừa gieo được âm dương — quẻ ứng nghiệm`,
-  (n) => `🧘 ${n} vừa thiền tròn 10 phút`,
-  (n) => `💌 ${n} vừa khấn cầu duyên`,
-];
-
-function updateNPCs(dt, t) {
-  for (const a of npcs) {
-    const ai = a.ai;
-    let moving = false;
-    if (a.state === 'sit') {
-      ai.next -= dt;
-      if (ai.next <= 0) {
-        const r = Math.random();
-        if (r < 0.45) a.bow(Math.random() < 0.6 ? 3 : 1);
-        else if (r < 0.6) { a.meditating = !a.meditating; }
-        else if (r < 0.72 && dist2(a.pos, camera.position) < 120) floatText(pick(['A Di Đà Phật', 'Nam mô A Di Đà Phật', 'Cầu duyên lành 🙏', 'Mô Phật']), a.pos.x, 2.4, a.pos.z, '#ffe2a3', 0.6);
-        else if (r < 0.76) { a.stand(); a.meditating = false; ai.target = randomWalkPoint(); }
-        ai.next = rand(4, 16);
-      }
-    } else {
-      if (ai.wait > 0) {
-        ai.wait -= dt;
-        if (ai.wait <= 0) {
-          if (Math.random() < 0.35) {
-            const fc = freeCushions().filter((c) => !(player && Math.hypot(c.x - player.pos.x, c.z - player.pos.z) < 1));
-            if (fc.length) { const c = pick(fc); ai.target = { x: c.x, z: c.z + 1.1, sitOn: c }; }
-            else ai.target = randomWalkPoint();
-          } else ai.target = randomWalkPoint();
-        }
-      } else if (ai.target) {
-        const dx = ai.target.x - a.pos.x, dz = ai.target.z - a.pos.z, d = Math.hypot(dx, dz);
-        if (d < 0.15) {
-          if (ai.target.sitOn && !ai.target.sitOn.taken) { a.sit(ai.target.sitOn); ai.next = rand(3, 10); }
-          else { ai.wait = rand(1.5, 5); a.faceAltar(); if (Math.random() < 0.4) a.bow(1); }
-          ai.target = null;
-        } else if (!a.busy) {
-          const sp = 1.4 * dt; let nx = a.pos.x + dx / d * sp, nz = a.pos.z + dz / d * sp;
-          // walk around cushion rows: stay in aisles until close
-          a.root.rotation.y = Math.atan2(dx, dz);
-          a.pos.x = nx; a.pos.z = nz; moving = true;
-        }
-      }
+function syncRoomPlayers(players, selfId) {
+  $('#online').textContent = players.length;
+  const present = new Set();
+  for (const data of players) {
+    if (data.id === selfId) continue;
+    present.add(data.id);
+    let remote = remotePlayers.get(data.id);
+    if (!remote || remote.hair !== data.hair) {
+      remote?.avatar.dispose();
+      const avatar = new Avatar(data);
+      avatar.pos.set(data.x, data.state === 'sit' ? 0.2 : 0, data.z);
+      remote = { avatar, hair: data.hair };
+      remotePlayers.set(data.id, remote);
     }
-    a.tag.visible = dist2(a.pos, camTarget) < 70;
-    a.update(dt, t, moving);
+    const a = remote.avatar;
+    if (a.name !== data.name || a.level !== data.level) a.setName(data.name, data.level);
+    a.setLook(data.robe);
+    if (a.cushion?.taken === a) a.cushion.taken = null;
+    a.cushion = null;
+    if (data.state === 'sit') {
+      const cushion = CUSHIONS.find(c => Math.hypot(c.x - data.x, c.z - data.z) < 0.2);
+      if (cushion && !cushion.taken) { a.cushion = cushion; cushion.taken = a; }
+    }
+    a.state = data.state;
+    a.pivot.scale.set(data.state === 'sit' ? 1.08 : 1, data.state === 'sit' ? 0.86 : 1, data.state === 'sit' ? 1.08 : 1);
+    a.shadow.visible = data.state !== 'sit';
+    a.tag.position.y = data.state === 'sit' ? 1.95 : 2.15;
+    a.meditating = data.meditating;
+    a.bowQueue = data.bowQueue; a.bowT = data.bowT;
+    remote.target = data;
+  }
+  for (const [id, remote] of remotePlayers) {
+    if (!present.has(id)) { remote.avatar.dispose(); remotePlayers.delete(id); }
   }
 }
-const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
-
-let onlineBase = npcs.length + 1 + Math.floor(rand(40, 70));
-let botEventT = 3;
-function updateBots(dt) {
-  botEventT -= dt;
-  if (botEventT <= 0) {
-    feed(pick(BOT_EVENTS)(pick(npcs).name));
-    botEventT = rand(4, 8);
-    onlineBase = clamp(onlineBase + Math.round(rand(-2, 2)), 90, 140);
-    $('#online').textContent = onlineBase;
+function updateRoomPlayers(dt, t) {
+  for (const { avatar: a, target } of remotePlayers.values()) {
+    if (!target) continue;
+    const blend = Math.min(1, dt * 14);
+    a.pos.x += (target.x - a.pos.x) * blend;
+    a.pos.z += (target.z - a.pos.z) * blend;
+    a.pos.y += ((target.state === 'sit' ? 0.2 : 0) - a.pos.y) * blend;
+    const dy = target.yaw - a.root.rotation.y;
+    a.root.rotation.y += Math.atan2(Math.sin(dy), Math.cos(dy)) * blend;
+    a.update(dt, t, target.state === 'walk');
   }
 }
-$('#online').textContent = onlineBase;
+function appendChat(entry, live) {
+  const log = $('#chatLog');
+  const row = document.createElement('p');
+  if (entry.system) {
+    row.className = 'chat-system'; row.textContent = entry.text;
+    if (live) feed(entry.text);
+  } else {
+    const name = document.createElement('strong'); name.textContent = entry.name + ': ';
+    const text = document.createElement('span'); text.textContent = entry.text;
+    row.append(name, text);
+    if (live) {
+      const a = entry.playerId === room.session?.id ? player : remotePlayers.get(entry.playerId)?.avatar;
+      if (a) floatText(entry.text.length > 48 ? entry.text.slice(0, 48) + '…' : entry.text, a.pos.x, a.pos.y + 2.8, a.pos.z, '#ffffff', 0.7);
+      if ($('#chat').hidden) { unread++; $('#bChat').textContent = '💬 ' + unread; }
+    }
+  }
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  log.appendChild(row);
+  while (log.children.length > 100) log.firstElementChild.remove();
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+const room = new SharedRoom({
+  getState: () => ({
+    name: P.name, robe: P.robe, hair: P.hair, level: levelOf(P.merit),
+    x: player.pos.x, z: player.pos.z,
+    yaw: Math.atan2(Math.sin(player.root.rotation.y), Math.cos(player.root.rotation.y)),
+    state: player.state, meditating: player.meditating, bowQueue: player.bowQueue, bowT: player.bowT,
+  }),
+  onPlayers: syncRoomPlayers,
+  onChat: appendChat,
+  onStatus: status => {
+    $('#roomStatus').textContent = status === 'connected' ? 'Phòng chung · Đã kết nối' : status === 'connecting' ? 'Đang vào phòng chung…' : 'Mất kết nối · Đang thử lại…';
+    $('#roomStatus').dataset.status = status;
+    $('#chatSend').disabled = status !== 'connected';
+    if (status !== 'connected') { $('#online').textContent = '—'; clearRemotePlayers(); }
+  },
+});
+function toggleChat(open) {
+  $('#chat').hidden = !open;
+  $('#bChat').setAttribute('aria-expanded', String(open));
+  if (open) {
+    unread = 0; $('#bChat').textContent = '💬';
+    $('#chatLog').scrollTop = $('#chatLog').scrollHeight;
+    $('#chatInput').focus();
+  } else $('#chatInput').blur();
+}
+$('#bChat').onclick = () => toggleChat($('#chat').hidden);
+$('#chatClose').onclick = () => toggleChat(false);
+$('#chatInput').addEventListener('focus', () => { for (const code in keys) keys[code] = false; joy.x = joy.y = 0; });
+$('#chatForm').onsubmit = async event => {
+  event.preventDefault();
+  if (!started) { $('#chatError').textContent = 'Bấm “Vào chùa” trước khi trò chuyện nhé.'; return; }
+  const input = $('#chatInput'), text = input.value.trim();
+  if (!text || $('#chatSend').disabled) return;
+  $('#chatSend').disabled = true; $('#chatError').textContent = '';
+  try { await room.chat(text); if (input.value.trim() === text) input.value = ''; }
+  catch (error) { $('#chatError').textContent = error.message; }
+  finally { $('#chatSend').disabled = !room.ready; }
+};
 
 /* ---------------- Input ---------------- */
 const keys = {};
@@ -751,6 +788,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyE') $('#sitBtn').click();
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const code in keys) keys[code] = false; joy.x = joy.y = 0; });
 
 const joy = { x: 0, y: 0, id: null };
 const joyEl = $('#joy'), knob = joyEl.querySelector('i');
@@ -966,7 +1004,7 @@ function updatePlayer(dt, t) {
   if (keys.KeyD || keys.ArrowRight) ix += 1;
   const mag = Math.min(1, Math.hypot(ix, iy));
   let moving = false;
-  const anyModal = $$('.modal.show').length > 0;
+  const anyModal = $$('.modal.show').length > 0 || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
   if (mag > 0.12 && !anyModal) {
     if (player.state === 'sit') { stopAll(); player.stand(); }
     if (player.meditating) stopAll();
@@ -1054,8 +1092,7 @@ const clock = new THREE.Clock();
 function loop() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   if (player) updatePlayer(dt, t);
-  updateNPCs(dt, t);
-  updateBots(dt);
+  updateRoomPlayers(dt, t);
   updateFeed(dt);
   // flames & lights
   for (const f of flames) { f.scale.set(1, 0.85 + Math.random() * 0.3, 1); }
@@ -1090,4 +1127,4 @@ renderProfile(); renderBeads();
 loop();
 
 // expose for debugging
-window.__chuaha = { scene, player: () => player, npcs, ACTIONS, cam };
+window.__chuaha = { scene, player: () => player, remotePlayers, room, ACTIONS, cam };

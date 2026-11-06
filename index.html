@@ -29,7 +29,8 @@
 <div class="hud" id="merit"><div class="pill">🪷 <span id="pMerit">0</span> công đức</div></div>
 <div class="hud" id="title" style="pointer-events:none">
   <h1>Chùa Hà · Đại Hùng Bảo Điện</h1>
-  <div class="on"><b>●</b> <span id="online">0</span> người trong chùa <span style="opacity:.6">(phần lớn là bot mô phỏng)</span></div>
+  <div class="on"><b>●</b> <span id="online">—</span> người trong chùa</div>
+  <div id="roomStatus" role="status">Vào chùa để kết nối phòng chung</div>
   <div id="feed">🪷 Chào mừng thập phương về chùa Hà cầu duyên</div>
 </div>
 <div class="hud" id="side">
@@ -37,7 +38,17 @@
   <button class="ib" id="bHelp" title="Hướng dẫn">❓</button>
   <button class="ib" id="bCam" title="Đặt lại góc nhìn">🎥</button>
   <button class="ib" id="bLook" title="Đổi pháp danh / trang phục">👘</button>
+  <button class="ib" id="bChat" title="Trò chuyện phòng chung" aria-label="Mở trò chuyện phòng chung" aria-controls="chat" aria-expanded="false">💬</button>
 </div>
+<section class="hud" id="chat" aria-label="Trò chuyện phòng chung" hidden>
+  <div class="chat-heading"><strong>💬 Phòng chung · Chùa Hà</strong><button id="chatClose" aria-label="Đóng trò chuyện">✕</button></div>
+  <div id="chatLog" role="log" aria-live="polite" aria-relevant="additions"><p class="chat-system">Mọi người vào chùa đều ở chung phòng. Hãy gửi một lời chào nhé 🙏</p></div>
+  <form id="chatForm" autocomplete="off">
+    <input id="chatInput" aria-label="Lời nhắn cho phòng chung" maxlength="240" placeholder="Gửi lời chào…" enterkeyhint="send">
+    <button id="chatSend" type="submit" disabled>Gửi</button>
+  </form>
+  <div id="chatError" role="status"></div>
+</section>
 <div class="hud" id="zoom">
   <button class="ib" id="zIn">＋</button>
   <button class="ib" id="zOut">－</button>
@@ -66,7 +77,7 @@
   <div class="card">
     <div class="kick">Thánh Đức tự · Nam mô A Di Đà Phật</div>
     <h1>Chùa Hà Online</h1>
-    <div class="sub" style="text-align:center">Vào chánh điện 3D, lạy Phật, lần hạt và xin quẻ cầu duyên</div>
+    <div class="sub" style="text-align:center">Cùng vào một chánh điện 3D, gặp gỡ và trò chuyện với mọi người</div>
     <label for="inName">Pháp danh / tên hiển thị</label>
     <input id="inName" maxlength="18" placeholder="VD: Thích Code Dạo">
     <label>Màu áo</label>
@@ -134,13 +145,14 @@
       <li><b>Đi lại:</b> cần điều khiển góc trái, hoặc phím W A S D / mũi tên.</li>
       <li><b>Xoay góc nhìn:</b> kéo màn hình. Nút ＋ / － hoặc con lăn chuột để phóng to, thu nhỏ.</li>
       <li><b>Ngồi:</b> lại gần bồ đoàn rồi bấm "Ngồi xuống" (phím E).</li>
+      <li><b>Trò chuyện:</b> bấm 💬 để gửi lời nhắn cho mọi người trong phòng chung. Vị trí, trang phục, lạy và thiền được đồng bộ trực tiếp.</li>
       <li><b>Lạy Phật:</b> 3 lạy, +3 công đức.</li>
       <li><b>Tràng hạt:</b> bấm "Lần hạt" (phím Space). Tròn 108 hạt được +20 công đức.</li>
       <li><b>Tụng kinh:</b> gõ mõ niệm "Nam mô A Di Đà Phật".</li>
       <li><b>Thiền:</b> ngồi yên, cứ 10 giây được +1 công đức.</li>
       <li><b>Dâng lễ</b> và <b>Cầu duyên:</b> khấn, xin quẻ, gieo âm dương.</li>
     </ul>
-    <div class="note">Đây là bản chơi một mình: những người khác trong chùa là bot mô phỏng. Công đức chỉ lưu trên trình duyệt của bạn. Trang mang tính giải trí. Muốn linh hơn thì ghé chùa Hà thật ở phố Chùa Hà, Cầu Giấy, Hà Nội 🙏</div>
+    <div class="note">Tất cả người chơi kết nối cùng máy chủ sẽ ở chung một phòng. Lời nhắn được chia sẻ công khai trong phòng, hãy trò chuyện lịch sự. Công đức chỉ lưu trên trình duyệt của bạn. Trang mang tính giải trí. Muốn linh hơn thì ghé chùa Hà thật ở phố Chùa Hà, Cầu Giấy, Hà Nội 🙏</div>
   </div>
 </div>
 
