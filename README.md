@@ -16,6 +16,17 @@ Làm thêm việc gì cũng được cộng công đức. Đủ công đức th�
 
 **Bảng công đức** nằm bên trái cạnh ban thờ: xếp hạng 5 người đang trong phòng có công đức cao nhất, hiển thị tên và số công đức. Bảng tự cập nhật khi điểm thay đổi hoặc có người vào/rời phòng; dòng của bạn được tô sáng nếu vào top 5. Công đức vẫn lấy từ dữ liệu lưu trên trình duyệt, chưa có xác thực chống gian lận điểm.
 
+**Bảng cột mốc** nằm bên phải cạnh ban thờ, đánh dấu những mốc bạn đã đạt. Bấm 🏅 để xem tiến độ và sử dụng phần thưởng:
+
+| Công đức | Danh hiệu | Phần thưởng cộng dồn |
+|---|---|---|
+| 1.000 | Tâm An | Áo sen ngọc, cánh sen bay khi lạy, huy hiệu dưới tên |
+| 2.000 | Duyên Lành | Hào quang nhẹ và động tác chắp tay chào |
+| 3.000 | Thiện Tâm | Viết lời nguyện và thả hoa đăng trên hồ sen bên phải cuối chùa |
+| 4.000 | Sen Vàng | Áo sen vàng, hào quang hoa sen và nghi thức dâng đèn trước Phật |
+
+Mở khóa không trừ điểm. Mốc đã đạt lưu riêng trên trình duyệt và được giữ khi tải lại trang. Xóa dữ liệu trình duyệt hoặc chuyển thiết bị sẽ không mang theo phần thưởng; hiện chưa có tài khoản để đồng bộ lâu dài. Áo, danh hiệu, hào quang và lời chào được đồng bộ cho người trong phòng. Hoa đăng/lễ đèn hiển thị chung trong 90 giây, giới hạn 20 lễ vật; máy chủ giữ các nghi thức gần nhất để người mới vào vẫn thấy, và giới hạn một nghi thức mỗi 10 giây cho mỗi phiên. Lời nguyện đi kèm hoa đăng là công khai trong phòng.
+
 ## Chạy
 
 Cần **Node.js 20 trở lên**, không cần cài thư viện hay build:
@@ -59,6 +70,7 @@ npm test
 - `style.css`: giao diện HUD
 - `game.js`: cảnh 3D (Three.js), nhân vật chibi, người chơi từ xa, giao diện chat, âm thanh và logic công đức/quẻ
 - `room.js`: kết nối phòng chung, đồng bộ và tự kết nối lại
+- `milestones.js`: bốn cột mốc, điều kiện mở khóa trang phục và nghi thức
 - `server.mjs`: máy chủ HTTP, phòng chung realtime qua SSE, API cập nhật nhân vật và chat
 - `server.test.mjs`: kiểm thử tích hợp máy chủ
 - `lib/`: Three.js r160, để sẵn trong repo nên không phụ thuộc CDN

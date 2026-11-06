@@ -2,6 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoomServer } from './server.mjs';
 import { getTopMerit } from './room.js';
+import { earnedMerit, milestoneTier, canUseRitual } from './milestones.js';
+
+test('milestones: exact thresholds, cumulative unlocks and retained earned rewards', () => {
+  for (const [merit, tier] of [[0, 0], [999, 0], [1000, 1], [1999, 1], [2000, 2], [2999, 2], [3000, 3], [3999, 3], [4000, 4], [9000, 4]]) {
+    assert.equal(milestoneTier(merit), tier);
+  }
+  assert.equal(earnedMerit(100, 4000), 4000);
+  assert.equal(earnedMerit(NaN, -100), 0);
+  assert.equal(earnedMerit(1000.9), 1000);
+  assert.equal(canUseRitual('lantern', 2999), false);
+  assert.equal(canUseRitual('lantern', 3000), true);
+  assert.equal(canUseRitual('lamp', 3999), false);
+  assert.equal(canUseRitual('lamp', 4000), true);
+  assert.equal(canUseRitual('unknown', 9000), false);
+});
 
 test('merit leaderboard: top five, stable ties, empty room and no snapshot mutation', () => {
   const players = [
@@ -104,10 +119,31 @@ test('shared room: presence, state, chat, reconnect, validation and public asset
   assert.equal(sanitized.hair, 'ngan');
   assert.equal(sanitized.merit, 0);
 
+  assert.equal((await post('ritual', { type: 'lamp' }, bob)).status, 403);
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal((await post('state', { name: 'Sen Vàng', merit: 4000, robe: 0xffd15c, greeting: true }, bob)).status, 200);
+  const rewarded = (await a.next('players', p => p.some(person => person.merit === 4000))).find(p => p.id === bob.id);
+  assert.equal(rewarded.robe, 0xffd15c);
+  assert.equal(rewarded.rewardMerit, 4000);
+  assert.equal(rewarded.greeting, true);
+  assert.equal((await post('ritual', { type: 'lamp', wish: 'Bình an' }, bob)).status, 200);
+  const ritual = await a.next('ritual');
+  assert.equal(ritual.type, 'lamp');
+  assert.equal(ritual.name, 'Sen Vàng');
+  assert.equal((await post('ritual', { type: 'lantern' }, bob)).status, 429);
+  assert.equal((await post('ritual', { type: 'unknown' }, bob)).status, 403);
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal((await post('state', { merit: 10, robe: 0xffd15c }, bob)).status, 200);
+  const retained = (await a.next('players', p => p.some(person => person.id === bob.id && person.merit === 10))).find(p => p.id === bob.id);
+  assert.equal(retained.rewardMerit, 4000);
+  assert.equal(retained.robe, 0xffd15c);
+  const observer = await stream(await join('Người mới'));
+  assert.ok((await observer.next('welcome')).rituals.some(item => item.id === ritual.id));
+
   assert.equal((await fetch(`${base}/api/join`, { method: 'POST', headers: { Origin: 'https://other.example' }, body: '{}' })).status, 403);
   assert.equal((await fetch(`${base}/api/join`, { method: 'POST', body: '[]' })).status, 400);
   assert.equal((await post('join', { name: 'a'.repeat(5000) })).status, 400);
-  for (const asset of ['/', '/game.js', '/room.js', '/work-fortunes.js', '/style.css', '/lib/three.module.js']) {
+  for (const asset of ['/', '/game.js', '/room.js', '/milestones.js', '/work-fortunes.js', '/style.css', '/lib/three.module.js']) {
     assert.equal((await fetch(base + asset)).status, 200);
   }
   for (const secret of ['/.git/config', '/server.mjs', '/package.json', '/lib/../server.mjs']) {

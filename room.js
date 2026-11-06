@@ -5,8 +5,8 @@ export function getTopMerit(players) {
 }
 
 export class SharedRoom {
-  constructor({ getState, onPlayers, onChat, onStatus }) {
-    Object.assign(this, { getState, onPlayers, onChat, onStatus });
+  constructor({ getState, onPlayers, onChat, onStatus, onRitual = () => {} }) {
+    Object.assign(this, { getState, onPlayers, onChat, onStatus, onRitual });
     this.session = null;
     this.source = null;
     this.ready = false;
@@ -34,9 +34,11 @@ export class SharedRoom {
         this.onStatus('connected');
         this.onPlayers(data.players, id);
         data.history.forEach(entry => this.receiveChat(entry, false));
+        (data.rituals ?? []).forEach(entry => this.onRitual(entry, false));
       });
       source.addEventListener('players', event => this.onPlayers(JSON.parse(event.data), id));
       source.addEventListener('chat', event => this.receiveChat(JSON.parse(event.data), true));
+      source.addEventListener('ritual', event => this.onRitual(JSON.parse(event.data), true));
       source.onerror = () => this.retry();
       this.syncTimer ??= setInterval(() => this.sync(), 100);
     } catch { this.retry(); }

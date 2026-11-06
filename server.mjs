@@ -3,6 +3,7 @@ import { randomUUID, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { earnedMerit, canUseRitual, MILESTONES } from './milestones.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
@@ -14,12 +15,16 @@ const number = (value, min, max, fallback) => Number.isFinite(value)
   ? Math.max(min, Math.min(max, value)) : fallback;
 
 function sanitize(input = {}) {
+  const merit = Math.floor(number(input.merit, 0, 1_000_000_000, 0));
+  const rewardMerit = earnedMerit(merit, input.rewardMerit);
+  const rewardRobe = MILESTONES.find(m => m.robe !== undefined && m.robe === input.robe && rewardMerit >= m.merit);
   return {
     name: cleanText(input.name, 18) || 'Phật tử',
-    robe: ROBES.includes(input.robe) ? input.robe : ROBES[0],
+    robe: ROBES.includes(input.robe) || rewardRobe ? input.robe : ROBES[0],
     hair: HAIRS.includes(input.hair) ? input.hair : 'ngan',
     level: Math.floor(number(input.level, 1, 999, 1)),
-    merit: Math.floor(number(input.merit, 0, 1_000_000_000, 0)),
+    merit, rewardMerit,
+    greeting: input.greeting === true && rewardMerit >= 2000,
     x: number(input.x, -13.2, 13.2, 0), z: number(input.z, -13.6, 15.2, 13.5),
     yaw: number(input.yaw, -Math.PI * 2, Math.PI * 2, Math.PI),
     state: ['stand', 'walk', 'sit'].includes(input.state) ? input.state : 'stand',
@@ -32,6 +37,7 @@ function sanitize(input = {}) {
 export function createRoomServer() {
   const sessions = new Map();
   const history = [];
+  const rituals = [];
   let dirty = false;
   const players = () => [...sessions.values()].filter(s => s.stream).map(s => ({ id: s.id, ...s.player }));
   function send(session, type, data) {
@@ -74,7 +80,7 @@ export function createRoomServer() {
           const input = await body(req);
           const session = {
             id: randomUUID(), token: randomBytes(24).toString('hex'), player: sanitize(input),
-            stream: null, touched: Date.now(), lastChat: 0, lastState: 0,
+            stream: null, touched: Date.now(), lastChat: 0, lastState: 0, lastRitual: 0,
           };
           sessions.set(session.id, session);
           return json(res, 201, { id: session.id, token: session.token });
@@ -91,7 +97,7 @@ export function createRoomServer() {
           });
           res.write(': connected\n\n');
           session.stream = res;
-          send(session, 'welcome', { players: players(), history });
+          send(session, 'welcome', { players: players(), history, rituals });
           message({ system: true, text: `🙏 ${session.player.name} vừa vào chùa` });
           dirty = true;
           res.on('close', () => {
@@ -107,7 +113,18 @@ export function createRoomServer() {
         if (url.pathname === '/api/state') {
           if (Date.now() - session.lastState < 45) return json(res, 429, { error: 'Cập nhật quá nhanh.' });
           session.lastState = Date.now();
-          session.player = sanitize(input); dirty = true;
+          session.player = sanitize({ ...input, rewardMerit: earnedMerit(input.rewardMerit, session.player.rewardMerit) }); dirty = true;
+          return json(res, 200, { ok: true });
+        }
+        if (url.pathname === '/api/ritual') {
+          if (!session.stream) return json(res, 409, { error: 'Hãy kết nối phòng chung trước.' });
+          if (!canUseRitual(input.type, session.player.rewardMerit)) return json(res, 403, { error: 'Bạn chưa mở khóa nghi thức này.' });
+          if (Date.now() - session.lastRitual < 10000) return json(res, 429, { error: 'Chờ 10 giây giữa hai nghi thức nhé.' });
+          session.lastRitual = Date.now();
+          const ritual = { id: randomUUID(), type: input.type, name: session.player.name, wish: cleanText(input.wish, 120), time: Date.now() };
+          rituals.push(ritual);
+          if (rituals.length > 20) rituals.shift();
+          broadcast('ritual', ritual);
           return json(res, 200, { ok: true });
         }
         if (url.pathname === '/api/chat') {
@@ -124,7 +141,7 @@ export function createRoomServer() {
       if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
       const filename = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
       // Only public assets are served; never expose source, Git metadata, or dotfiles.
-      if (!['index.html', 'style.css', 'game.js', 'room.js', 'work-fortunes.js', 'lib/three.module.js', 'lib/RoomEnvironment.js'].includes(filename)) {
+      if (!['index.html', 'style.css', 'game.js', 'room.js', 'milestones.js', 'work-fortunes.js', 'lib/three.module.js', 'lib/RoomEnvironment.js'].includes(filename)) {
         res.writeHead(404); return res.end('Not found');
       }
       const data = await readFile(path.join(ROOT, filename));

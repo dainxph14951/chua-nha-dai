@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from './lib/RoomEnvironment.js';
 import { SharedRoom, getTopMerit } from './room.js';
 import { WORK_FORTUNES } from './work-fortunes.js';
+import { MILESTONES, earnedMerit, milestoneTier } from './milestones.js';
 
 /* =========================================================
    Chùa Hà Online 3D — game.js
@@ -276,6 +277,7 @@ mesh(new THREE.BoxGeometry(0.1, 1.6, 0.1), M.wood, 0, 0.8, 0, sign);
 const signBoard = mesh(new THREE.PlaneGeometry(2, 1), new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.8 }), 0, 1.9, 0.06, sign);
 mesh(new THREE.BoxGeometry(2.1, 1.1, 0.08), M.wood, 0, 1.9, 0, sign);
 sign.rotation.y = -0.35;
+sign.position.set(3.4, 0, -15.4);
 PILLARS.push({ x: 7.2, z: -14.6, r: 0.4 }, { x: 4.4, z: -15.2, r: 0.7 }, { x: -5.2, z: -15.4, r: 0.9 });
 
 /* ---------------- Bảng công đức cạnh trái ban thờ ---------------- */
@@ -336,6 +338,103 @@ function renderMeritBoard(players, selfId, status = 'connected', force = false) 
 }
 renderMeritBoard([], '', 'waiting');
 document.fonts?.ready?.then(() => renderMeritBoard(meritBoardPlayers, meritBoardSelfId, meritBoardStatus, true)).catch(() => {});
+
+/* ---------------- Bảng cột mốc bên phải ban thờ ---------------- */
+const milestoneBoard = meritBoard.clone();
+milestoneBoard.name = 'milestoneBoard'; milestoneBoard.position.x = 8.6; milestoneBoard.rotation.y = -0.18;
+const milestoneCanvas = document.createElement('canvas'); milestoneCanvas.width = 1024; milestoneCanvas.height = 1152;
+const milestoneTexture = new THREE.CanvasTexture(milestoneCanvas); milestoneTexture.colorSpace = THREE.SRGBColorSpace; milestoneTexture.anisotropy = 4;
+const milestoneFace = milestoneBoard.children.find(o => o.material?.map === meritBoardTexture);
+milestoneFace.material = new THREE.MeshBasicMaterial({ map: milestoneTexture });
+scene.add(milestoneBoard);
+PILLARS.push({ x: 6.95, z: -14.4, r: 0.55 }, { x: 10.25, z: -14.4, r: 0.55 });
+let milestoneBoardMerit = -1;
+function renderMilestoneBoard(merit, force = false) {
+  if (!force && merit === milestoneBoardMerit) return;
+  milestoneBoardMerit = merit;
+  const x = milestoneCanvas.getContext('2d');
+  const bg = x.createLinearGradient(0, 0, 0, 1152); bg.addColorStop(0, '#411b12'); bg.addColorStop(1, '#1e100d');
+  x.fillStyle = bg; x.fillRect(0, 0, 1024, 1152);
+  x.strokeStyle = '#be914b'; x.lineWidth = 3; x.strokeRect(20, 20, 984, 1112);
+  x.textAlign = 'center'; x.fillStyle = '#ffe2a3'; x.font = 'bold 62px "Noto Serif", serif'; x.fillText('CỘT MỐC CÔNG ĐỨC', 512, 120);
+  x.fillStyle = '#d9bc91'; x.font = '30px "Be Vietnam Pro", sans-serif'; x.fillText('TÍCH ĐIỂM · MỞ KHÓA PHẦN THƯỞNG', 512, 183);
+  MILESTONES.forEach((m, i) => {
+    const y = 268 + i * 194, unlocked = merit >= m.merit;
+    x.fillStyle = unlocked ? '#41482a' : '#311b12'; x.fillRect(48, y - 30, 928, 174);
+    x.textAlign = 'left'; x.fillStyle = '#ffda76'; x.font = 'bold 38px "Be Vietnam Pro", sans-serif';
+    x.fillText(`${m.merit.toLocaleString('vi-VN')} · ${m.title}`, 75, y + 12);
+    x.textAlign = 'right'; x.font = '25px "Be Vietnam Pro", sans-serif'; x.fillStyle = unlocked ? '#bfe5aa' : '#b7a38c';
+    x.fillText(unlocked ? 'ĐÃ ĐẠT' : 'CHƯA ĐẠT', 950, y + 10);
+    x.textAlign = 'left'; x.font = '30px "Be Vietnam Pro", sans-serif'; x.fillStyle = '#fff1d8';
+    m.rewards.forEach((line, j) => x.fillText(line, 75, y + 62 + j * 43));
+  });
+  x.textAlign = 'center'; x.fillStyle = '#d9bc91'; x.font = '27px "Be Vietnam Pro", sans-serif';
+  x.fillText('Thưởng cộng dồn · Không trừ công đức', 512, 1060);
+  x.fillText('Bấm nút 🏅 để xem và dùng phần thưởng', 512, 1105);
+  milestoneTexture.needsUpdate = true;
+}
+document.fonts?.ready?.then(() => renderMilestoneBoard(milestoneBoardMerit, true)).catch(() => {});
+
+/* ---------------- Hồ sen và nghi thức chung trong phòng ---------------- */
+const pond = new THREE.Group(); pond.name = 'lotusPond'; pond.position.set(10.8, 0, 8.8); scene.add(pond);
+const pondBase = mesh(new THREE.CylinderGeometry(1, 1.03, 0.2, 48), M.stone, 0, 0.1, 0, pond); pondBase.scale.set(1.95, 1, 2.85);
+const water = mesh(new THREE.CircleGeometry(1, 48), mat(0x234e49, { roughness: 0.25, metalness: 0.3 }), 0, 0.205, 0, pond);
+water.rotation.x = -Math.PI / 2; water.scale.set(1.8, 2.7, 1);
+const pondRim = mesh(new THREE.RingGeometry(0.94, 1, 48), M.goldSoft, 0, 0.211, 0, pond);
+pondRim.rotation.x = -Math.PI / 2; pondRim.scale.set(1.95, 2.85, 1);
+const lotusPetalGeo = new THREE.SphereGeometry(1, 8, 6);
+const lotusPink = mat(0xf0a6b4, { emissive: 0x3b101c, emissiveIntensity: 0.3 });
+const lanternGold = new THREE.MeshBasicMaterial({ color: 0xffc763 });
+const lanternFlameGeo = new THREE.SphereGeometry(0.07, 8, 6);
+const lanternCupGeo = new THREE.CylinderGeometry(0.15, 0.1, 0.12, 12);
+for (let i = 0; i < 5; i++) {
+  const angle = i * 2.4, radius = i % 2 ? 1.1 : 0.7;
+  const leaf = mesh(new THREE.CircleGeometry(0.29, 16), mat(0x476b44), Math.sin(angle) * radius, 0.22, Math.cos(angle) * radius * 1.5, pond);
+  leaf.rotation.x = -Math.PI / 2;
+  for (let j = 0; j < 7; j++) {
+    const a = j * Math.PI * 2 / 7;
+    const petal = mesh(lotusPetalGeo, lotusPink, leaf.position.x + Math.sin(a) * 0.1, 0.27, leaf.position.z + Math.cos(a) * 0.1, pond);
+    petal.scale.set(0.07, 0.045, 0.15); petal.rotation.y = a;
+  }
+}
+const ritualObjects = [], seenRituals = new Set();
+function renderRitual(entry, live) {
+  if (seenRituals.has(entry.id)) return;
+  seenRituals.add(entry.id);
+  if (seenRituals.size > 100) seenRituals.delete(seenRituals.values().next().value);
+  const age = Math.max(0, (Date.now() - entry.time) / 1000);
+  if (age > 90) return;
+  const root = new THREE.Group(); root.name = entry.type === 'lamp' ? 'offeringLamp' : 'floatingLantern';
+  for (let i = 0; i < 9; i++) {
+    const angle = i * Math.PI * 2 / 9;
+    const petal = mesh(lotusPetalGeo, entry.type === 'lamp' ? M.goldSoft : lotusPink,
+      Math.sin(angle) * 0.18, 0.04, Math.cos(angle) * 0.18, root);
+    petal.scale.set(0.09, 0.07, 0.2); petal.rotation.y = angle;
+  }
+  mesh(lanternCupGeo, M.goldSoft, 0, 0.12, 0, root);
+  const flame = mesh(lanternFlameGeo, lanternGold, 0, 0.28, 0, root); flame.scale.y = 1.8;
+  const phase = ritualObjects.length * 2.4;
+  if (entry.type === 'lamp') { root.position.set(Math.sin(phase) * 1.25, TABLE.y, TABLE.z + 0.45); scene.add(root); }
+  else { pond.add(root); }
+  ritualObjects.push({ root, type: entry.type, age, phase });
+  if (ritualObjects.length > 20) { const old = ritualObjects.shift(); old.root.removeFromParent(); }
+  if (live) {
+    feed(`🪷 ${entry.name} vừa ${entry.type === 'lamp' ? 'dâng đèn trước Phật' : 'thả hoa đăng'}`);
+    if (entry.wish) floatText(entry.wish.length > 48 ? entry.wish.slice(0, 48) + '…' : entry.wish, 10.8, 1.4, 8.8, '#ffe2a3', 0.8);
+  }
+}
+function updateRituals(dt, t) {
+  for (let i = ritualObjects.length - 1; i >= 0; i--) {
+    const item = ritualObjects[i]; item.age += dt;
+    if (item.age > 90) { item.root.removeFromParent(); ritualObjects.splice(i, 1); continue; }
+    if (item.type === 'lantern') {
+      const angle = t * 0.08 + item.phase;
+      item.root.position.set(Math.sin(angle) * 1.12, 0.24 + Math.sin(t * 1.8 + item.phase) * 0.015, Math.cos(angle) * 1.9);
+      item.root.rotation.y = angle;
+    }
+    item.root.scale.setScalar(Math.min(1, (90 - item.age) / 5));
+  }
+}
 
 /* -------- Candles, incense, offerings -------- */
 const flames = [];
@@ -416,6 +515,7 @@ for (const x of [-7.4, 7.4]) for (const z of [-9, -2, 5, 12]) lantern(x, 5.4, z)
 const CUSHIONS = [];
 for (const side of [-1, 1]) {
   for (let i = 0; i < 5; i++) for (let j = 0; j < 10; j++) {
+    if (side === 1 && i >= 3 && j >= 7) continue; // Chừa chỗ cho hồ sen.
     CUSHIONS.push({ x: side * (3.6 + i * 1.95), z: -10.4 + j * 2.4, taken: null });
   }
 }
@@ -450,6 +550,7 @@ const ROBES = [
   { id: 'tim', name: 'Tím nhạt', c: 0xb9a3dc },
   { id: 'trang', name: 'Trắng ngà', c: 0xeee4d0 },
   { id: 'vang', name: 'Vàng nghệ', c: 0xe0a13e },
+  ...MILESTONES.filter(m => m.robe).map(m => ({ id: 'reward-' + m.merit, name: m.robeName, c: m.robe, required: m.merit })),
 ];
 const HAIRS = [
   { id: 'troc', name: 'Đầu trọc' },
@@ -498,7 +599,7 @@ function nameSprite(text, color = '#ffffff', sub = '') {
 }
 
 class Avatar {
-  constructor({ name, robe, hair, skin = 0, isPlayer = false, level = 1, subtitle = null }) {
+  constructor({ name, robe, hair, skin = 0, isPlayer = false, level = 1, subtitle = null, rewardMerit = 0 }) {
     this.name = name; this.isPlayer = isPlayer; this.level = level; this.subtitle = subtitle;
     this.root = new THREE.Group();
     this.pivot = new THREE.Group(); this.pivot.position.y = 0.12; this.root.add(this.pivot);
@@ -531,11 +632,13 @@ class Avatar {
     this.bowQueue = 0; this.bowT = 0;
     this.walkT = 0; this.aura.material.opacity = 0; this.meditating = false;
     this.cushion = null; this.phase = Math.random() * 10;
+    this.rewardTier = 0; this.greetT = 0; this.petalT = 0; this.wasBowing = false;
+    this.setRewards(rewardMerit);
   }
   setName(name, level) {
     this.name = name; this.level = level;
     this.root.remove(this.tag); this.tag.material.map.dispose(); this.tag.material.dispose();
-    this.tag = nameSprite(name, this.isPlayer ? '#ffd98a' : '#ffffff', this.subtitle ?? 'Hạt sen · bậc ' + level);
+    this.tag = nameSprite(name, this.isPlayer ? '#ffd98a' : '#ffffff', this.subtitle ?? `${MILESTONES[this.rewardTier - 1]?.title ?? 'Hạt sen'} · bậc ${level}`);
     this.tag.position.y = this.state === 'sit' ? 1.95 : 2.15; this.root.add(this.tag);
   }
   dispose() {
@@ -544,6 +647,29 @@ class Avatar {
     this.tag.material.map.dispose(); this.tag.material.dispose(); this.aura.material.dispose();
   }
   setLook(robe) { this.robeMesh.material = robeMat(robe); }
+  setRewards(merit) {
+    const tier = milestoneTier(merit);
+    if (tier === this.rewardTier) return;
+    this.rewardTier = tier; this.setName(this.name, this.level);
+    this.aura.material.color.set(tier >= 4 ? 0xffd15c : 0xffdcb0);
+    if (tier >= 1 && !this.rewardPetals) {
+      this.rewardPetals = new THREE.Group(); this.root.add(this.rewardPetals);
+      for (let i = 0; i < 12; i++) {
+        const p = mesh(lotusPetalGeo, lotusPink, 0, 0, 0, this.rewardPetals); p.scale.set(0.045, 0.018, 0.09);
+      }
+      this.rewardPetals.visible = false;
+    }
+    if (tier >= 4 && !this.lotusHalo) {
+      this.lotusHalo = new THREE.Group(); this.lotusHalo.position.y = 0.035; this.root.add(this.lotusHalo);
+      for (let i = 0; i < 12; i++) {
+        const angle = i * Math.PI * 2 / 12;
+        const p = mesh(lotusPetalGeo, lanternGold, Math.sin(angle) * 0.77, 0, Math.cos(angle) * 0.77, this.lotusHalo);
+        p.scale.set(0.13, 0.025, 0.31); p.rotation.y = angle;
+      }
+    }
+    if (this.lotusHalo) this.lotusHalo.visible = tier >= 4;
+  }
+  greet() { this.greetT = 3; }
   get pos() { return this.root.position; }
   faceTo(x, z) { this.root.rotation.y = Math.atan2(x - this.pos.x, z - this.pos.z); }
   faceAltar() { this.faceTo(0, -19); }
@@ -560,6 +686,8 @@ class Avatar {
   bow(n = 3) { this.bowQueue = n; this.bowT = 0; }
   get busy() { return this.bowQueue > 0; }
   update(dt, t, moving) {
+    if (this.busy && !this.wasBowing && this.rewardTier >= 1) this.petalT = 4.5;
+    this.wasBowing = this.busy;
     // bow animation
     let lean = 0;
     if (this.bowQueue > 0) {
@@ -578,7 +706,21 @@ class Avatar {
       // idle breathing
       if (this.state !== 'walk') this.head.position.y = 1.3 + Math.sin(t * 1.6 + this.phase) * 0.012;
     }
-    const target = this.meditating ? 0.55 + Math.sin(t * 2.2) * 0.2 : 0;
+    if (this.greetT > 0) {
+      this.greetT = Math.max(0, this.greetT - dt);
+      this.hands.forEach(h => { h.position.y = this.greetT > 0 ? 1.05 + Math.sin(t * 3) * 0.015 : 0.8; });
+      if (!this.busy) this.pivot.rotation.x = Math.sin((3 - this.greetT) / 3 * Math.PI) * 0.18;
+    }
+    if (this.rewardPetals) {
+      this.petalT = Math.max(0, this.petalT - dt); this.rewardPetals.visible = this.petalT > 0;
+      if (this.rewardPetals.visible) this.rewardPetals.children.forEach((p, i) => {
+        const angle = i * Math.PI / 6 + t * 1.3;
+        p.position.set(Math.sin(angle) * 0.75, (t * 0.7 + i * 0.18) % 2, Math.cos(angle) * 0.75);
+        p.rotation.set(t + i, angle, t * 0.5);
+      });
+    }
+    if (this.lotusHalo) this.lotusHalo.rotation.y = t * 0.12;
+    const target = this.meditating ? 0.55 + Math.sin(t * 2.2) * 0.2 : this.rewardTier >= 2 ? 0.25 + Math.sin(t * 2) * 0.07 : 0;
     this.aura.material.opacity += (target - this.aura.material.opacity) * Math.min(1, dt * 4);
     this.aura.scale.setScalar(1 + Math.sin(t * 2.2) * 0.06);
   }
@@ -662,7 +804,11 @@ $$('.modal').forEach((m) => m.addEventListener('pointerdown', (e) => { if (e.tar
 const P = {
   name: store.get('name', ''), robe: store.get('robe', ROBES[0].c), hair: store.get('hair', 'ngan'),
   merit: store.get('merit', 0), beads: store.get('beads', 0), rounds: store.get('rounds', 0),
+  rewardMerit: store.get('rewardMerit', 0),
 };
+P.merit = earnedMerit(P.merit);
+P.rewardMerit = earnedMerit(P.merit, P.rewardMerit); store.set('rewardMerit', P.rewardMerit);
+if (!ROBES.some(r => r.c === P.robe && (r.required ?? 0) <= P.rewardMerit)) P.robe = ROBES[0].c;
 function levelOf(m) { return Math.floor(Math.sqrt(m / 12)) + 1; }
 function levelMin(l) { return 12 * (l - 1) * (l - 1); }
 let player;
@@ -672,10 +818,17 @@ function renderProfile() {
   $('#pLevel').textContent = `Hạt sen · bậc ${l}`;
   $('#pBar').style.width = ((P.merit - a) / (b - a) * 100).toFixed(1) + '%';
   $('#pMerit').textContent = P.merit;
+  $('#pBadge').textContent = MILESTONES[milestoneTier(P.rewardMerit) - 1]?.title ?? '';
+  document.body.classList.toggle('has-merit-badge', milestoneTier(P.rewardMerit) > 0);
+  player?.setRewards(P.rewardMerit);
+  renderMilestoneBoard(P.rewardMerit);
+  renderRewards();
 }
 function addMerit(n, why) {
   const before = levelOf(P.merit);
+  const previousEarned = P.rewardMerit;
   P.merit += n; store.set('merit', P.merit);
+  P.rewardMerit = earnedMerit(P.merit, P.rewardMerit); store.set('rewardMerit', P.rewardMerit);
   renderProfile();
   if (player) floatText('+' + n + ' công đức', player.pos.x, player.pos.y + 2.6, player.pos.z, '#9cf5b5', 0.7);
   const after = levelOf(P.merit);
@@ -684,14 +837,93 @@ function addMerit(n, why) {
     feed(`✨ ${P.name} thăng cấp Hạt sen · bậc ${after}`);
     player.setName(P.name, after);
   }
+  const unlocked = MILESTONES.filter(m => previousEarned < m.merit && P.rewardMerit >= m.merit);
+  if (unlocked.length) {
+    const last = unlocked.at(-1);
+    showMilestoneCelebration(last); syncStart();
+    petals(30); bellSound(330, 5, 0.25);
+    feed(`🏅 ${P.name} đạt mốc ${last.merit.toLocaleString('vi-VN')} công đức · ${last.title}`);
+  }
 }
 
 /* ---------------- Start screen ---------------- */
+let milestoneCelebrationTimer, ritualPending = false;
+function showMilestoneCelebration(milestone) {
+  const el = $('#milestoneCelebration');
+  el.textContent = `🏅 Đạt ${milestone.merit.toLocaleString('vi-VN')} công đức · ${milestone.title}! ${milestone.rewards.join('. ')}. Bấm 🏅 để dùng phần thưởng.`;
+  el.hidden = false;
+  clearTimeout(milestoneCelebrationTimer);
+  milestoneCelebrationTimer = setTimeout(() => { el.hidden = true; }, 6000);
+}
+function equipRewardRobe(milestone) {
+  if (P.rewardMerit < milestone.merit) return;
+  P.robe = milestone.robe; robeSel = P.robe; store.set('robe', P.robe);
+  player?.setLook(P.robe); syncStart(); renderRewards();
+  $('#rewardMessage').textContent = `Đã mặc áo ${milestone.robeName}.`;
+}
+function renderRewards() {
+  const next = MILESTONES.find(m => P.rewardMerit < m.merit);
+  $('#rewardProgress').textContent = next
+    ? `Đã tích ${P.rewardMerit.toLocaleString('vi-VN')} · Còn ${(next.merit - P.rewardMerit).toLocaleString('vi-VN')} để đạt ${next.title}`
+    : 'Bạn đã mở khóa đủ cả 4 mốc công đức!';
+  const list = $('#rewardList'); list.replaceChildren();
+  for (const m of MILESTONES) {
+    const unlocked = P.rewardMerit >= m.merit;
+    const row = document.createElement('div'); row.className = 'reward-row' + (unlocked ? ' unlocked' : '');
+    const title = document.createElement('strong'); title.textContent = `${unlocked ? '✓' : '🔒'} ${m.merit.toLocaleString('vi-VN')} · ${m.title}`;
+    const detail = document.createElement('div'); detail.textContent = m.rewards.join(' · '); row.append(title, detail);
+    if (m.robe) {
+      const button = document.createElement('button');
+      button.textContent = P.robe === m.robe ? 'Đang mặc' : `Mặc áo ${m.robeName}`;
+      button.disabled = !unlocked || P.robe === m.robe; button.dataset.rewardRobe = String(m.merit);
+      button.onclick = () => equipRewardRobe(m); row.append(button);
+    }
+    list.append(row);
+  }
+  $('#rewardGreet').disabled = P.rewardMerit < 2000;
+  $('#rewardLantern').disabled = P.rewardMerit < 3000;
+  $('#rewardLamp').disabled = P.rewardMerit < 4000 || ritualPending;
+  $('#releaseLantern').disabled = ritualPending;
+}
+$('#bRewards').onclick = () => {
+  renderRewards(); $('#rewardMessage').textContent = ''; openModal('mRewards');
+};
+$('#rewardGreet').onclick = () => {
+  if (!player || P.rewardMerit < 2000) return;
+  if (player.busy) { $('#rewardMessage').textContent = 'Hãy lạy xong rồi chắp tay chào nhé.'; return; }
+  player.greet(); closeModal('mRewards'); toast('🙏 Chắp tay chào mọi người');
+};
+$('#rewardLantern').onclick = () => {
+  if (P.rewardMerit < 3000) return;
+  $('#lanternForm').hidden = false; $('#lanternWish').focus();
+};
+async function sendRewardRitual(type) {
+  if (ritualPending || !player || P.rewardMerit < (type === 'lamp' ? 4000 : 3000)) return;
+  if (!room.ready) { $('#rewardMessage').textContent = 'Vào chùa và chờ kết nối phòng chung để thực hiện nghi thức.'; return; }
+  ritualPending = true; renderRewards(); $('#rewardMessage').textContent = 'Đang thực hiện nghi thức…';
+  try {
+    await room.sync();
+    await room.post('ritual', { type, wish: type === 'lantern' ? $('#lanternWish').value.trim() : '' });
+    if (type === 'lamp') { player.faceAltar(); player.bow(1); }
+    else { $('#lanternWish').value = ''; $('#lanternForm').hidden = true; }
+    bellSound(330, 4, 0.2); petals(20);
+    $('#rewardMessage').textContent = type === 'lamp' ? 'Đã dâng đèn trước Phật. Mọi người trong phòng đều thấy.' : 'Hoa đăng đã được thả xuống hồ sen bên phải cuối chùa. Mọi người trong phòng đều thấy.';
+  } catch (error) { $('#rewardMessage').textContent = error.message; }
+  finally { ritualPending = false; renderRewards(); }
+}
+$('#rewardLamp').onclick = () => sendRewardRitual('lamp');
+$('#releaseLantern').onclick = () => sendRewardRitual('lantern');
+
 let robeSel = P.robe, hairSel = P.hair;
 $('#robeOpts').innerHTML = ROBES.map((r) => `<button class="opt sw" title="${r.name}" data-c="${r.c}" style="background:#${r.c.toString(16).padStart(6, '0')}"></button>`).join('');
 $('#hairOpts').innerHTML = HAIRS.map((h) => `<button class="opt" data-h="${h.id}">${h.name}</button>`).join('');
 function syncStart() {
-  $$('#robeOpts .sw').forEach((b) => b.classList.toggle('on', +b.dataset.c === robeSel));
+  $$('#robeOpts .sw').forEach((b) => {
+    const robe = ROBES.find(r => r.c === +b.dataset.c);
+    b.disabled = (robe.required ?? 0) > P.rewardMerit;
+    b.title = robe.name + (b.disabled ? ` · Cần ${robe.required.toLocaleString('vi-VN')} công đức` : '');
+    b.classList.toggle('on', +b.dataset.c === robeSel);
+  });
   $$('#hairOpts .opt').forEach((b) => b.classList.toggle('on', b.dataset.h === hairSel));
 }
 $('#robeOpts').onclick = (e) => { if (e.target.dataset.c) { robeSel = +e.target.dataset.c; syncStart(); } };
@@ -707,7 +939,7 @@ $('#enter').onclick = () => {
   closeModal('start');
   if (!player || changedHair) {
     const old = player;
-    player = new Avatar({ name: n, robe: robeSel, hair: hairSel, isPlayer: true, level: levelOf(P.merit) });
+    player = new Avatar({ name: n, robe: robeSel, hair: hairSel, isPlayer: true, level: levelOf(P.merit), rewardMerit: P.rewardMerit });
     if (old) {
       player.pos.copy(old.pos); player.root.rotation.y = old.root.rotation.y;
       old.dispose();
@@ -753,6 +985,9 @@ function syncRoomPlayers(players, selfId) {
     const a = remote.avatar;
     if (a.name !== data.name || a.level !== data.level) a.setName(data.name, data.level);
     a.setLook(data.robe);
+    a.setRewards(data.rewardMerit ?? data.merit ?? 0);
+    if (data.greeting && !remote.greeting) a.greet();
+    remote.greeting = data.greeting;
     if (a.cushion?.taken === a) a.cushion.taken = null;
     a.cushion = null;
     if (data.state === 'sit') {
@@ -807,12 +1042,14 @@ function appendChat(entry, live) {
 const room = new SharedRoom({
   getState: () => ({
     name: P.name, robe: P.robe, hair: P.hair, level: levelOf(P.merit), merit: P.merit,
+    rewardMerit: P.rewardMerit, greeting: player.greetT > 0,
     x: player.pos.x, z: player.pos.z,
     yaw: Math.atan2(Math.sin(player.root.rotation.y), Math.cos(player.root.rotation.y)),
     state: player.state, meditating: player.meditating, bowQueue: player.bowQueue, bowT: player.bowT,
   }),
   onPlayers: syncRoomPlayers,
   onChat: appendChat,
+  onRitual: renderRitual,
   onStatus: status => {
     $('#roomStatus').textContent = status === 'connected' ? 'Phòng chung · Đã kết nối' : status === 'connecting' ? 'Đang vào phòng chung…' : 'Mất kết nối · Đang thử lại…';
     $('#roomStatus').dataset.status = status;
@@ -1136,6 +1373,12 @@ function updatePlayer(dt, t) {
         const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz), r = p.r + 0.35;
         if (d < r) { nx = p.x + dx / d * r; nz = p.z + dz / d * r; }
       }
+      const pondDx = nx - 10.8, pondDz = nz - 8.8;
+      const pondDistance = Math.hypot(pondDx / 2.3, pondDz / 3.2);
+      if (pondDistance < 1) {
+        nx = 10.8 + (pondDistance > 0 ? pondDx / pondDistance : -2.3);
+        nz = 8.8 + (pondDistance > 0 ? pondDz / pondDistance : 0);
+      }
       // altar front edge
       if (nz < -13.6) nz = -13.6;
       player.pos.x = nx; player.pos.z = nz;
@@ -1208,7 +1451,7 @@ for (let i = 0; i < NPC_NAMES.length; i++) {
   // Lối giữa, hai đầu hàng bồ đoàn và khe giữa các dãy.
   const route = [{ x: side * 0.9, z: 13.4 }, { x: side * 0.9, z: -12 },
     { x: side * 4.575, z: -12 }, { x: side * 4.575, z: 13.4 }];
-  const avatar = new Avatar({ name: NPC_NAMES[i], robe: ROBES[i % ROBES.length].c,
+  const avatar = new Avatar({ name: NPC_NAMES[i], robe: ROBES[i % 7].c,
     hair: HAIRS[i % HAIRS.length].id, skin: i % 3, subtitle: 'Phật tử · Mô phỏng' });
   const segment = i % route.length, from = route[segment], to = route[(segment + 1) % route.length];
   avatar.pos.set(THREE.MathUtils.lerp(from.x, to.x, (i + 1) / 12), 0,
@@ -1316,6 +1559,7 @@ function loop() {
   if (player) updatePlayer(dt, t);
   updateRoomPlayers(dt, t);
   updateNPCs(dt, t);
+  updateRituals(dt, t);
   updateFeed(dt);
   // flames & lights
   for (const f of flames) { f.scale.set(1, 0.85 + Math.random() * 0.3, 1); }

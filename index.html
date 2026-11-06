@@ -23,6 +23,7 @@
   <div>
     <div class="nm" id="pName">Phật tử</div>
     <div class="lv" id="pLevel">Hạt sen · bậc 1</div>
+    <div id="pBadge"></div>
     <div class="bar"><i id="pBar"></i></div>
   </div>
 </div>
@@ -40,6 +41,7 @@
   <button class="ib" id="bCam" title="Đặt lại góc nhìn">🎥</button>
   <button class="ib" id="bLook" title="Đổi pháp danh / trang phục">👘</button>
   <button class="ib" id="bChat" title="Trò chuyện phòng chung" aria-label="Mở trò chuyện phòng chung" aria-controls="chat" aria-expanded="false">💬</button>
+  <button class="ib" id="bRewards" title="Cột mốc và phần thưởng công đức" aria-label="Cột mốc và phần thưởng công đức">🏅</button>
 </div>
 <section class="hud" id="chat" aria-label="Trò chuyện phòng chung" hidden>
   <div class="chat-heading"><strong>💬 Phòng chung · Chùa Hà</strong><button id="chatClose" aria-label="Đóng trò chuyện">✕</button></div>
@@ -73,6 +75,7 @@
 <div class="hud" id="medi">🧘 Đang thiền · <span id="mediT">0:00</span><br><small style="font-size:12px;opacity:.8">Di chuyển để kết thúc</small></div>
 <div class="hud" id="toast"></div>
 <div id="meritNotice" role="alert" aria-atomic="true" hidden></div>
+<div id="milestoneCelebration" role="status" hidden></div>
 
 <!-- Start -->
 <div class="modal show" id="start">
@@ -144,6 +147,28 @@
   </div>
 </div>
 
+<!-- Cột mốc công đức -->
+<div class="modal" id="mRewards">
+  <div class="card">
+    <button class="x" data-close aria-label="Đóng phần thưởng">✕</button>
+    <h2>Cột mốc công đức</h2>
+    <div class="sub">Tích công đức để mở phần thưởng được lưu trên trình duyệt này. Các mốc được cộng dồn, không trừ điểm.</div>
+    <div id="rewardProgress" role="status"></div>
+    <div id="rewardList"></div>
+    <div class="reward-tools">
+      <button class="btn ghost" id="rewardGreet">🙏 Chắp tay chào · 2.000</button>
+      <button class="btn ghost" id="rewardLantern">🪷 Thả hoa đăng · 3.000</button>
+      <button class="btn ghost" id="rewardLamp">🏮 Dâng đèn · 4.000</button>
+    </div>
+    <div id="lanternForm" hidden>
+      <label for="lanternWish">Lời nguyện gửi theo hoa đăng (mọi người trong phòng đều thấy)</label>
+      <textarea id="lanternWish" maxlength="120" placeholder="Nguyện cho mọi người được bình an…"></textarea>
+      <button class="btn" id="releaseLantern">🪷 Thả xuống hồ sen</button>
+    </div>
+    <div class="note" id="rewardMessage" role="status"></div>
+  </div>
+</div>
+
 <!-- Help -->
 <div class="modal" id="mHelp">
   <div class="card help">
@@ -155,6 +180,7 @@
       <li><b>Ngồi:</b> lại gần bồ đoàn rồi bấm "Ngồi xuống" (phím E).</li>
       <li><b>Trò chuyện:</b> bấm 💬 để gửi lời nhắn cho mọi người trong phòng chung. Vị trí, trang phục, lạy và thiền được đồng bộ trực tiếp.</li>
       <li><b>Bảng công đức:</b> bên trái cạnh ban thờ, hiển thị top 5 người đang trong phòng có công đức cao nhất.</li>
+      <li><b>Cột mốc công đức:</b> bảng bên phải ban thờ mô tả thưởng ở 1.000, 2.000, 3.000 và 4.000 điểm. Bấm 🏅 để xem tiến độ, mặc áo thưởng, chắp tay chào, thả hoa đăng và dâng đèn. Hồ sen nằm bên phải cuối chùa.</li>
       <li><b>Nhân vật mô phỏng:</b> có phật tử đi lại, tụng kinh, khấn bái và ni cô cầm chổi quét dọn. Nhãn dưới tên ghi rõ Mô phỏng; các nhân vật này không tính vào số người online hay bảng công đức.</li>
       <li><b>Lạy Phật:</b> 3 lạy, +3 công đức.</li>
       <li><b>Tràng hạt:</b> bấm "Lần hạt" (phím Space). Tròn 108 hạt được +20 công đức.</li>
