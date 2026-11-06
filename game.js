@@ -1166,7 +1166,52 @@ $('#bSound').onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); 
 let nearCushion = null, beadMode = false, beadAuto = false, beadAutoT = 0;
 let chanting = false, chantT = 0, chantIdx = 0;
 let medStart = 0, medAcc = 0;
+let offerPending = false, offerReadyAt = 0;
 const CHANT = ['Nam', 'mô', 'A', 'Di', 'Đà', 'Phật'];
+const ACTION_DELAYS = { bow: 6000, beads: 1500, chant: 3000, medi: 3000, offer: 1500, que: 2000 };
+const actionReadyAt = new Map();
+const timedButtons = new Map();
+function isActionActive(action) {
+  return action === 'beads' ? beadMode : action === 'chant' ? chanting : action === 'medi' && !!player?.meditating;
+}
+function actionWait(action) {
+  return Math.max(0, (actionReadyAt.get(action) ?? 0) - performance.now(),
+    action === 'offer' ? offerReadyAt - performance.now() : 0);
+}
+function actionBusy(action) {
+  return (['bow', 'chant', 'medi', 'offer'].includes(action) && !!player?.busy)
+    || (action === 'offer' && offerPending);
+}
+function showButtonWait(button, disabled, wait = 0, busy = false, canStop = false) {
+  let badge = button.querySelector('.action-wait');
+  if (!badge) { badge = document.createElement('small'); badge.className = 'action-wait'; badge.setAttribute('aria-hidden', 'true'); button.append(badge); }
+  button.dataset.baseLabel ??= [...button.childNodes].filter(n => n !== badge).map(n => n.textContent).join('').trim();
+  button.disabled = disabled;
+  const message = canStop ? 'Bấm để dừng' : wait > 0 ? `Chờ ${Math.ceil(wait / 1000)}s` : busy ? 'Đang xử lý' : '';
+  badge.textContent = message; badge.hidden = !message;
+  button.title = button.dataset.baseLabel + (message ? ' · ' + message : '');
+  button.setAttribute('aria-label', button.title);
+}
+function updateActionButtons() {
+  for (const button of $$('.act')) {
+    const action = button.dataset.a, active = isActionActive(action), wait = actionWait(action), busy = actionBusy(action);
+    showButtonWait(button, !player || (!active && (wait > 0 || busy)), active ? 0 : wait, busy, active);
+  }
+  const offerWait = Math.max(0, offerReadyAt - performance.now());
+  for (const button of $$('.offer button')) showButtonWait(button, !player || offerPending || offerWait > 0, offerWait, offerPending);
+  const beadWait = Math.max(0, 250 - (performance.now() - lastBeadTap));
+  showButtonWait($('#beadTap'), !player || beadRequestPending || beadWait > 0, 0, beadRequestPending || beadWait > 0);
+  for (const [button, state] of timedButtons) {
+    const wait = Math.max(0, state.until - performance.now());
+    showButtonWait(button, state.busy || wait > 0, wait, state.busy);
+    if (!state.busy && wait <= 0) timedButtons.delete(button);
+  }
+}
+function lockTimedButton(button, milliseconds) {
+  const state = { until: performance.now() + milliseconds, busy: true };
+  timedButtons.set(button, state); updateActionButtons();
+  return () => { state.busy = false; updateActionButtons(); };
+}
 
 function stopAll(except) {
   if (except !== 'chant' && chanting) { chanting = false; setOn('chant', false); }
@@ -1215,6 +1260,16 @@ const ACTIONS = {
     $('.tab[data-t="que"]').click();
   },
 };
+for (const [action, run] of Object.entries(ACTIONS)) {
+  ACTIONS[action] = () => {
+    if (!player) return false;
+    const active = isActionActive(action);
+    if (!active && (actionWait(action) > 0 || actionBusy(action))) return false;
+    actionReadyAt.set(action, performance.now() + ACTION_DELAYS[action]);
+    run(); updateActionButtons();
+    return true;
+  };
+}
 $$('.act').forEach((b) => b.onclick = () => { if (player) ACTIONS[b.dataset.a](); });
 
 function renderBeads() { $('#beadCnt').textContent = `${P.beads} / 108`; }
@@ -1222,6 +1277,7 @@ let beadRequestPending = false, lastBeadTap = -Infinity;
 async function beadTap() {
   if (!player || beadRequestPending || performance.now() - lastBeadTap < 250) return;
   lastBeadTap = performance.now(); beadRequestPending = true;
+  updateActionButtons();
   try {
     const result = await addMerit('bead');
     if (!result) return;
@@ -1231,7 +1287,7 @@ async function beadTap() {
       bellSound(); petals(20); toast(`📿 Tròn chuỗi 108 hạt (lần thứ ${P.rounds})`);
       feed(`📿 ${P.name} vừa tròn một chuỗi 108 hạt`);
     }
-  } finally { beadRequestPending = false; }
+  } finally { beadRequestPending = false; updateActionButtons(); }
 }
 $('#beadTap').onclick = beadTap;
 $('#beadAuto').onclick = () => { beadAuto = !beadAuto; $('#beadAuto').classList.toggle('on', beadAuto); };
@@ -1244,15 +1300,16 @@ $('#sitBtn').onclick = () => {
 };
 
 // Dâng lễ
-let offerPending = false, offerReadyAt = 0;
 const offerings = [];
 const OFFER_NAMES = { lotus: 'hoa sen', fruit: 'mâm quả', incense: 'nén hương', candle: 'đôi nến' };
 $$('.offer button').forEach((b) => b.onclick = async () => {
   if (offerPending || !player) return;
   if (performance.now() < offerReadyAt) { toast(`Chờ ${Math.ceil((offerReadyAt - performance.now()) / 1000)} giây để dâng lễ tiếp.`); return; }
   offerPending = true;
+  updateActionButtons();
   const reward = await addMerit('offer');
   offerPending = false;
+  updateActionButtons();
   if (!reward) return;
   const k = b.dataset.o; closeModal('mOffer');
   if (offerings.length >= 10) { const o = offerings.shift(); altar.remove(o); }
@@ -1333,7 +1390,7 @@ const QUE = [
 ];
 $('#doShake').onclick = () => {
   if ($('#doShake').disabled || !canDrawLoveFortune()) return;
-  $('#doShake').disabled = true;
+  const finishWaiting = lockTimedButton($('#doShake'), 3000);
   $('#queOut').innerHTML = '<div class="sub" style="text-align:center;margin-top:12px">🎋 Lóc cóc… lóc cóc…</div>'; $('#coinBox').style.display = 'none';
   let n = 0; const iv = setInterval(() => { mo(0.35); if (++n > 6) clearInterval(iv); }, 200);
   setTimeout(() => {
@@ -1345,13 +1402,13 @@ $('#doShake').onclick = () => {
     if (q.lvl.includes('cát')) petals(q.lvl === 'Đại cát' ? 30 : 14);
     feed(`🎋 ${P.name} vừa xin được quẻ ${q.lvl}`);
     addMerit('fortune');
-    $('#doShake').disabled = false;
+    finishWaiting();
   }, 1500);
 };
 $('#doWorkShake').onclick = () => {
   const button = $('#doWorkShake');
   if (button.disabled || !player) return;
-  button.disabled = true;
+  const finishWaiting = lockTimedButton(button, 3000);
   $('#workQueOut').textContent = '🎋 Đang lắc ống xăm công việc…';
   let taps = 0;
   const sound = setInterval(() => { mo(0.35); if (++taps >= 6) clearInterval(sound); }, 200);
@@ -1378,10 +1435,12 @@ $('#doWorkShake').onclick = () => {
     bellSound(300, 2.5, 0.2);
     if (q.lvl.includes('cát')) petals(q.lvl === 'Đại cát' ? 30 : 14);
     feed(`💼 ${P.name} vừa xin quẻ công việc ${q.lvl}`);
-    button.disabled = false;
+    finishWaiting();
   }, 1500);
 };
 $('#doCoin').onclick = () => {
+  if ($('#doCoin').disabled) return;
+  const finishWaiting = lockTimedButton($('#doCoin'), 2000);
   const a = Math.random() < 0.5, b = Math.random() < 0.5;
   ['#c1', '#c2'].forEach((s) => { const c = $(s); c.classList.remove('flip'); void c.offsetWidth; c.classList.add('flip'); c.textContent = '?'; });
   setTimeout(() => {
@@ -1391,8 +1450,13 @@ $('#doCoin').onclick = () => {
     else if (a && b) m = 'Hai dương — Thánh cười, xin gieo lại lần nữa.';
     else m = 'Hai âm — chưa thuận, tĩnh tâm rồi gieo lại.';
     $('#coinMsg').textContent = m;
+    finishWaiting();
   }, 900);
 };
+
+// Use a wall-clock timer so buttons unlock even when the 3D scene is paused in a background tab.
+setInterval(updateActionButtons, 100);
+updateActionButtons();
 
 /* ---------------- Movement & collision ---------------- */
 const fwd = new THREE.Vector3(), right = new THREE.Vector3();

@@ -56,6 +56,8 @@ npm test
 
 ## Chống tích công đức bất thường
 
+- Các nút chính có đếm ngược và bị vô hiệu hóa trong thời gian chờ: lạy Phật 6 giây, mở tràng hạt 1,5 giây, khởi động lại tụng kinh/thiền 3 giây, mở mục cầu duyên 2 giây. Dâng lễ xong chờ 10 giây, đồng bộ theo thời gian máy chủ. Có thể dừng ngay một hoạt động đang chạy; sau khi dừng cần chờ trước khi bật lại.
+- Các nút rút quẻ chờ 3 giây giữa hai lần, gieo âm dương chờ 2 giây, nút lần hạt bị khóa khi đang gửi yêu cầu và giữa hai lần bấm. Không thể dâng lễ hoặc bắt đầu tụng kinh/thiền khi đang lạy.
 - Trình duyệt chỉ gửi **loại hoạt động**, không tự quyết định số điểm. Máy chủ ghi nhận điểm, tiến độ 108 hạt, cấp độ và phần thưởng.
 - Lạy 3 lạy: +3, ít nhất 4 giây giữa hai lần; tụng kinh: +1, ít nhất 2,5 giây; thiền: +1, ít nhất 9,5 giây.
 - Dâng lễ: +5, cách nhau 10 giây. Giao diện lần hạt tối đa 4 lần/giây, máy chủ kiểm tra từng hạt; đủ 108 hạt mới được +20.
