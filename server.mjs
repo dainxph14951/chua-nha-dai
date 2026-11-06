@@ -6,7 +6,8 @@ import path from 'node:path';
 import { earnedMerit, canUseRitual, MILESTONES } from './milestones.js';
 import { createMeritAccount, meritStatus, performMeritAction, lockMerit, refreshMeritLock } from './merit-guard.mjs';
 import { openMeritLedger } from './merit-ledger.mjs';
-import { createGameTables, snapshotTables, actOnTable, setTablePresence, expireTableSeats } from './board-games.mjs';
+import { createGameTables, snapshotTables, setTablePresence } from './board-games.mjs';
+import { actOnStakedTable, expireStakedSeats, cancelBlockedBets } from './board-stakes.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
@@ -28,7 +29,7 @@ function sanitize(input = {}) {
     level: Math.floor(number(input.level, 1, 999, 1)),
     merit, rewardMerit,
     greeting: input.greeting === true && rewardMerit >= 2000,
-    x: number(input.x, -13.2, 13.2, 0), z: number(input.z, -13.6, 37, 13.5),
+    x: number(input.x, -13.2, 13.2, 0), z: number(input.z, -13.6, 37, 22.8),
     yaw: number(input.yaw, -Math.PI * 2, Math.PI * 2, Math.PI),
     state: ['stand', 'walk', 'sit'].includes(input.state) ? input.state : 'stand',
     meditating: input.meditating === true,
@@ -54,6 +55,12 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
   }
   async function refreshAccount(account) {
     if (refreshMeritLock(account, now())) { await persist(); updateMerit(account); }
+  }
+  async function saveMeritChange(account) {
+    const refunded = cancelBlockedBets(tables, accounts);
+    await persist(); updateMerit(account);
+    for (const affected of refunded) if (affected !== account) updateMerit(affected);
+    if (refunded.size) broadcastTables();
   }
   function forgedPoints(input, account) {
     return (typeof input.merit === 'number' && input.merit > account.merit)
@@ -106,7 +113,7 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
           account.publicId ??= randomUUID(); // Public ranking key is separate from the private identity cookie.
           await refreshAccount(account);
           if (forgedPoints(input, account)) lockMerit(account, 'Gửi số công đức tự sửa khi vào phòng.', now());
-          await persist();
+          await saveMeritChange(account);
           const secure = req.headers['x-forwarded-proto'] === 'https' || req.socket.encrypted;
           res.setHeader('Set-Cookie', `chuaha_identity=${accountId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${secure ? '; Secure' : ''}`);
           const session = {
@@ -153,17 +160,19 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
           const identity = session.account.publicId, previous = boardRequests.get(identity);
           if (previous !== undefined && now() - previous < 120) return json(res, 429, { error: 'Thao tác bàn cờ quá nhanh, chờ một chút nhé.' });
           boardRequests.set(identity, now());
-          try { actOnTable(tables, boardActor(session), input); }
+          let changed;
+          try { changed = actOnStakedTable(tables, accounts, boardActor(session), input); }
           catch (error) { return json(res, error.status || 400, { error: error.message }); }
+          if (changed.size) { await persist(); for (const account of changed) updateMerit(account); }
           const data = snapshotTables(tables); broadcast('tables', data);
-          return json(res, 200, { tables: data });
+          return json(res, 200, { tables: data, account: meritStatus(session.account, now()) });
         }
         if (url.pathname === '/api/state') {
           if (Date.now() - session.lastState < 45) return json(res, 429, { error: 'Cập nhật quá nhanh.' });
           session.lastState = Date.now();
           if (forgedPoints(input, session.account)) {
             const result = lockMerit(session.account, 'Tự sửa tổng công đức gửi lên máy chủ.', now());
-            await persist(); updateMerit(session.account);
+            await saveMeritChange(session.account);
             return json(res, result.status, { ...result, account: meritStatus(session.account, now()) });
           }
           const previousName = session.player.name;
@@ -176,7 +185,7 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
           const result = Object.hasOwn(input, 'amount') || forgedPoints(input, session.account)
             ? lockMerit(session.account, 'Gửi yêu cầu tự cộng số điểm không hợp lệ.', now())
             : performMeritAction(session.account, input.action, now());
-          await persist(); updateMerit(session.account);
+          await saveMeritChange(session.account);
           return json(res, result.status, { ...result, account: meritStatus(session.account, now()) });
         }
         if (url.pathname === '/api/ritual') {
@@ -216,7 +225,12 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
     }
   });
   const tick = setInterval(() => {
-    if (expireTableSeats(tables, now())) broadcastTables();
+    const expired = expireStakedSeats(tables, accounts, now());
+    if (expired.changed.size) {
+      persist().catch(error => console.error('Không lưu được quyết toán cược:', error.message));
+      for (const account of expired.changed) updateMerit(account);
+    }
+    if (expired.expired || expired.changed.size) broadcastTables();
     const unlocked = new Set();
     for (const session of sessions.values()) if (refreshMeritLock(session.account, now())) unlocked.add(session.account);
     if (unlocked.size) {

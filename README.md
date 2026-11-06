@@ -31,13 +31,19 @@ Mở khóa không trừ điểm. Mốc đã đạt và công đức lưu trong s
 
 Đi qua cửa chính ra sân phía trước, hoặc bấm **♟ → Ra khuôn viên**. Có đúng 3 bàn, mỗi bàn dành cho 2 người thật:
 
+Mỗi lần vào hoặc tải lại trang, nhân vật xuất hiện ngoài cổng gần bàn cờ vua. Nếu đang giữ chỗ trong ván, tải lại vẫn giữ chỗ; bấm **Trở lại ghế ở bàn** để quay về ghế.
+
 - **Cờ tướng:** Đỏ đi trước; máy chủ kiểm tra nước đi, cản mã/cản tượng, pháo cần ngòi khi ăn, giới hạn cung/sông, cấm lộ mặt tướng và xử thắng khi đối thủ hết nước hợp lệ. Hòa khi lặp thế ba lần hoặc 120 lượt không bắt quân; bên chiếu liên tục lặp thế bị xử thua. Bản giải trí chưa phân xử đuổi quân liên tục theo luật thi đấu WXF.
 - **Cờ vua:** Trắng đi trước; có chiếu/chiếu hết, nhập thành, bắt tốt qua đường, lựa chọn phong cấp và các trường hợp hòa, dùng [chess.js](https://github.com/jhlywa/chess.js) trên máy chủ.
 - **Ca-rô:** bàn 15×15, X đi trước; từ 5 quân cùng bên liên tiếp theo hàng/cột/chéo là thắng, không xét chặn hai đầu; bàn đầy thì hòa.
 
 Bấm vào mặt bàn hoặc nút hiện khi đến gần, hay bấm ♟ rồi chọn bàn. Bấm **Ngồi vào bàn** để nhận chỗ; ván chỉ bắt đầu khi đủ 2 người có danh tính khác nhau. Mỗi danh tính chỉ ngồi một bàn; nhiều tab cùng trình duyệt không thể đóng cả hai vai. Khi bàn đủ người, người khác vẫn xem được ván nhưng không được đi quân.
 
-Chọn quân rồi chọn ô sáng để đi; ca-rô chỉ cần chọn ô trống. Máy chủ kiểm tra lượt và nước đi, đồng bộ bàn cờ và các quân trên mặt bàn 3D cho mọi người. Có Xin thua, Rời bàn và Chơi ván mới (cần cả hai đồng ý, đổi bên ở ván mới). Đóng cửa sổ bàn cờ vẫn giữ chỗ. Mất mạng được giữ chỗ 30 giây và tạm dừng ván; quá hạn nhường chỗ, xử thua nếu ván đang chơi. Chơi cờ không cộng hay trừ công đức. Ván cờ được làm mới khi máy chủ khởi động lại.
+Chọn quân rồi chọn ô sáng để đi; ca-rô chỉ cần chọn ô trống. Máy chủ kiểm tra lượt và nước đi, đồng bộ bàn cờ và các quân trên mặt bàn 3D cho mọi người. Có Xin thua, Rời bàn và Chơi ván mới (cần cả hai đồng ý, đổi bên ở ván mới). Đóng cửa sổ bàn cờ vẫn giữ chỗ. Mất mạng được giữ chỗ 30 giây và tạm dừng ván; quá hạn nhường chỗ, xử thua nếu ván đang chơi.
+
+**Cược công đức trong game:** người đầu tiên chọn mức từ 0–1.000 công đức mỗi người; 0 là chơi thường. Người thứ hai phải đồng ý đúng mức cược. Máy chủ kiểm tra số dư và chỉ giữ điểm của cả hai khi ván bắt đầu. Người thắng nhận tổng cược, hòa hoàn lại cho mỗi bên; xin thua, rời bàn hoặc mất kết nối quá 30 giây tính thua. Hai người cùng mất kết nối quá hạn thì hủy ván và hoàn cược. Chơi lại cần cả hai đồng ý và đủ điểm cho lượt cược mới. Điểm không quy đổi thành tiền. Điểm thắng được tính riêng, không kích hoạt giới hạn tốc độ tích điểm từ hoạt động.
+
+Ván cờ được làm mới khi máy chủ khởi động lại; cược chưa quyết toán được hoàn một lần từ sổ dữ liệu. Việc khôi phục chỉ hoạt động khi tệp `MERIT_DATA_FILE` còn được giữ: ổ đĩa tạm trên Render Free có thể mất cả số dư lẫn cược đang giữ khi triển khai lại. Danh tính bị khóa do gian lận bị hủy ván và không được hoàn cược; đối thủ hợp lệ được hoàn điểm.
 
 ## Chạy
 
@@ -103,6 +109,8 @@ Sổ dữ liệu mặc định là `.data/merit-ledger.json`, ghi nguyên tử, 
 - `board-games.mjs`: ba trò chơi, luật nước đi, quản lý hai chỗ và kết nối lại
 - `board-ui.js`: giao diện chọn bàn, chơi cờ và xem ván
 - `board-games.test.mjs`: kiểm thử luật và đồng bộ bàn cờ
+- `board-stakes.mjs`: xác nhận mức cược, giữ điểm, quyết toán và khôi phục cược
+- `board-stakes.test.mjs`: kiểm thử số dư, đồng ý cược, thắng/hòa, mất mạng và khôi phục
 - `milestones.js`: bốn cột mốc, điều kiện mở khóa trang phục và nghi thức
 - `server.mjs`: máy chủ HTTP, phòng chung realtime qua SSE, API cập nhật nhân vật và chat
 - `server.test.mjs`: kiểm thử tích hợp máy chủ

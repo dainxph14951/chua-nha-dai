@@ -178,7 +178,7 @@
   <div class="card board-card">
     <button class="x" data-close aria-label="Đóng bàn cờ">✕</button>
     <h2>Khuôn viên chơi cờ</h2>
-    <p class="sub">3 bàn, mỗi bàn 2 người chơi thật. Có thể xem ván khi bàn đã đủ người. Chơi cờ không cộng hay trừ công đức.</p>
+    <p class="sub">3 bàn, mỗi bàn 2 người chơi thật. Có thể chơi thường hoặc cược công đức trong game; chỉ trừ điểm khi cả hai đồng ý cùng mức cược.</p>
     <button class="btn ghost" id="visitGarden">🌳 Ra khuôn viên</button>
     <div id="tableChoices" class="table-choices"></div>
     <p id="boardWaiting">Vào chùa và chờ kết nối phòng chung để chọn bàn.</p>
@@ -188,8 +188,17 @@
         <div><h3 id="boardTitle"></h3><div id="boardTurn" role="status"></div><div id="gameBoard" class="game-board"></div></div>
         <div class="board-info">
           <div id="boardSeats"></div>
+          <div class="board-stakes">
+            <strong>Cược công đức trong game</strong>
+            <div id="boardStakeBalance"></div>
+            <label for="boardStake">Mỗi người góp (0–1.000)<input id="boardStake" type="number" min="0" max="1000" step="1" value="0" inputmode="numeric"></label>
+            <button class="btn ghost" id="boardSetStake" hidden>Đề xuất mức cược</button>
+            <div id="boardStakeTerms" class="note" role="status"></div>
+            <div id="boardBetResult" class="note" hidden></div>
+          </div>
           <div class="board-buttons">
             <button class="btn" id="boardJoin">Ngồi vào bàn</button>
+            <button class="btn ghost" id="boardReturn" hidden>Trở lại ghế ở bàn</button>
             <button class="btn ghost" id="boardLeave">Rời bàn (xử thua nếu đang chơi)</button>
             <button class="btn ghost" id="boardResign">Xin thua</button>
             <button class="btn ghost" id="boardRematch">Chơi ván mới</button>

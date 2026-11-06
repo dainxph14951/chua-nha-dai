@@ -70,11 +70,12 @@ function newPosition(type) {
 }
 export function createGameTables() {
   return DEFINITIONS.map(definition => ({ ...definition, seats: [null, null], status: 'waiting', version: 0,
-    position: newPosition(definition.id), result: null, history: [], lastMove: null, winningCells: [], rematch: [] }));
+    position: newPosition(definition.id), result: null, history: [], lastMove: null, winningCells: [], rematch: [], wager: 0, bet: null }));
 }
 function reset(table) {
   table.position = newPosition(table.id); table.result = null; table.history = []; table.lastMove = null;
   table.winningCells = []; table.rematch = []; table.status = table.seats.every(Boolean) ? 'playing' : 'waiting';
+  if (!table.seats.some(Boolean)) { table.wager = 0; table.bet = null; }
 }
 function finish(table, winner, text) { table.status = 'finished'; table.result = { winner, text }; table.rematch = []; }
 function currentTurn(table) { return table.id === 'chess' ? table.position.engine.turn() : table.position.turn; }
@@ -86,7 +87,8 @@ function legalMoves(table) {
 export function snapshotTables(tables) {
   return tables.map(table => ({ id: table.id, title: table.title, rows: table.rows, cols: table.cols, sides: table.sides, labels: table.labels,
     x: table.x, z: 27, seats: table.seats.map(seat => seat ? { identity: seat.identity, name: seat.name, offlineSince: seat.offlineSince } : null),
-    status: table.status, version: table.version, result: table.result, rematch: [...table.rematch],
+    status: table.status, version: table.version, result: table.result, rematch: [...table.rematch], wager: table.wager,
+    bet: table.bet ? { amount: table.bet.amount, pot: table.bet.amount * 2, settled: table.bet.settled, payouts: table.bet.payouts ?? [], note: table.bet.note ?? '' } : null,
     board: table.id === 'chess' ? table.position.engine.board().flat().map(p => p ? p.color + p.type : null) : [...table.position.board],
     turn: currentTurn(table), legalMoves: legalMoves(table), lastMove: table.lastMove, winningCells: [...table.winningCells], history: table.history.slice(-12),
     inCheck: table.id === 'chess' ? table.position.engine.isCheck() : table.id === 'xiangqi' && xiangqiInCheck(table.position.board, table.position.turn),

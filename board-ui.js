@@ -2,9 +2,9 @@ const CHESS_PIECES = { wk: '♔', wq: '♕', wr: '♖', wb: '♗', wn: '♘', wp
 export const XIANGQI_PIECES = { rk: '帥', ra: '仕', re: '相', rh: '傌', rr: '俥', rc: '炮', rp: '兵', bk: '將', ba: '士', be: '象', bh: '馬', br: '車', bc: '砲', bp: '卒' };
 export function pieceLabel(type, piece) { return type === 'chess' ? CHESS_PIECES[piece] || '' : type === 'xiangqi' ? XIANGQI_PIECES[piece] || '' : piece || ''; }
 
-export function setupBoardGames({ getRoom, onSeat, onLeave, onVisit, onUpdate }) {
+export function setupBoardGames({ getRoom, onSeat, onLeave, onVisit, onUpdate, getMerit = () => 0, isMeritLocked = () => false }) {
   const $ = id => document.getElementById(id);
-  let tables = [], selectedId = null, selectedCell = null, pending = false, lastSeat = '';
+  let tables = [], selectedId = null, selectedCell = null, pending = false, lastSeat = '', stakeTableId = null;
   const identity = () => getRoom().session?.identity;
   const active = () => tables.find(t => t.id === selectedId);
   const seatOf = table => identity() ? (table?.seats.findIndex(s => s?.identity === identity()) ?? -1) : -1;
@@ -20,7 +20,7 @@ export function setupBoardGames({ getRoom, onSeat, onLeave, onVisit, onUpdate })
     const mine = tables.find(t => seatOf(t) >= 0);
     const key = mine ? mine.id + ':' + seatOf(mine) : '';
     if (key !== lastSeat) {
-      if (mine) onSeat(mine, seatOf(mine)); else if (lastSeat) onLeave();
+      if (mine) onSeat(mine, seatOf(mine), { restoring: reset }); else if (lastSeat) onLeave();
       lastSeat = key;
     }
     onUpdate(tables); render();
@@ -81,13 +81,15 @@ export function setupBoardGames({ getRoom, onSeat, onLeave, onVisit, onUpdate })
     for (const table of tables) {
       const card = document.createElement('button'); card.className = 'table-choice' + (table.id === selectedId ? ' selected' : '');
       const title = document.createElement('strong'); title.textContent = table.title;
-      const detail = document.createElement('span'); detail.textContent = `${table.seats.filter(Boolean).length}/2 người · ${statusText(table)}`;
+      const detail = document.createElement('span'); detail.textContent = `${table.seats.filter(Boolean).length}/2 người · ${statusText(table)} · ${table.wager ? 'Cược ' + table.wager : 'Chơi thường'}`;
       card.append(title, detail); card.onclick = () => { selectedId = table.id; selectedCell = null; $('boardError').textContent = ''; render(); }; list.append(card);
     }
     $('boardWaiting').hidden = tables.length > 0;
     const table = active(); $('boardDetail').hidden = !table;
     if (!table) return;
     const seat = seatOf(table), occupied = table.seats.filter(Boolean).length;
+    if (stakeTableId !== table.id) { $('boardStake').value = String(table.wager || 0); stakeTableId = table.id; }
+    if (occupied > 0 && !(seat >= 0 && occupied === 1 && table.status === 'waiting')) $('boardStake').value = String(table.wager || 0);
     $('boardTitle').textContent = table.title;
     $('boardSeats').replaceChildren();
     table.seats.forEach((person, i) => {
@@ -100,11 +102,13 @@ export function setupBoardGames({ getRoom, onSeat, onLeave, onVisit, onUpdate })
       : `${seat >= 0 && table.sides[seat] === table.turn ? 'Đến lượt bạn' : 'Lượt ' + table.labels[table.sides.indexOf(table.turn)]}${table.inCheck ? ' · Đang bị chiếu!' : ''}`;
     $('boardJoin').hidden = seat >= 0; $('boardJoin').disabled = pending || occupied >= 2 || !getRoom().ready;
     $('boardJoin').textContent = occupied >= 2 ? 'Bàn đã đủ 2 người · Bạn đang xem' : 'Ngồi vào bàn';
+    $('boardReturn').hidden = seat < 0; $('boardReturn').disabled = pending;
     $('boardLeave').hidden = seat < 0; $('boardLeave').disabled = pending;
     $('boardResign').hidden = seat < 0; $('boardResign').disabled = pending || table.status !== 'playing';
     $('boardRematch').hidden = seat < 0 || table.status !== 'finished';
     $('boardRematch').disabled = pending || occupied < 2 || table.rematch.includes(identity());
     $('boardRematch').textContent = table.rematch.includes(identity()) ? 'Đã sẵn sàng · Chờ đối thủ' : 'Chơi ván mới (cần cả hai đồng ý)';
+    renderStakeControls(table);
     $('promotionLabel').hidden = table.id !== 'chess';
     $('boardRules').textContent = table.id === 'caro' ? 'Ca-rô 15×15: X đi trước, từ 5 quân liên tiếp theo hàng, cột hoặc chéo là thắng; không xét chặn hai đầu.'
       : table.id === 'chess' ? 'Trắng đi trước. Chọn quân rồi chọn ô sáng. Có nhập thành, bắt tốt qua đường, phong cấp, chiếu hết và hòa.'
@@ -113,11 +117,41 @@ export function setupBoardGames({ getRoom, onSeat, onLeave, onVisit, onUpdate })
     table.history.forEach(text => { const line = document.createElement('li'); line.textContent = text; history.append(line); });
     renderBoard(table);
   }
+  function renderStakeControls(table) {
+    const seat = seatOf(table), occupied = table.seats.filter(Boolean).length;
+    const editable = occupied === 0 || (seat >= 0 && occupied === 1 && table.status === 'waiting');
+    const chosen = occupied === 0 ? Number($('boardStake').value) : table.wager || 0;
+    const draft = Number($('boardStake').value), valid = Number.isInteger(draft) && draft >= 0 && draft <= 1000;
+    const balance = getMerit(), locked = isMeritLocked();
+    $('boardStake').disabled = pending || !editable;
+    $('boardStakeBalance').textContent = `Số dư khả dụng: ${balance.toLocaleString('vi-VN')} công đức`;
+    $('boardSetStake').hidden = !(seat >= 0 && occupied === 1 && table.status === 'waiting');
+    $('boardSetStake').disabled = pending || !valid || draft > balance || (draft > 0 && locked);
+    $('boardJoin').disabled = pending || occupied >= 2 || !getRoom().ready || !Number.isInteger(chosen) || chosen < 0 || chosen > 1000 || chosen > balance || (chosen > 0 && locked);
+    $('boardJoin').textContent = occupied >= 2 ? 'Bàn đã đủ 2 người · Bạn đang xem' : chosen > 0 ? `Đồng ý cược ${chosen} và vào bàn` : 'Ngồi vào bàn · Chơi thường';
+    $('boardRematch').disabled = pending || occupied < 2 || table.rematch.includes(identity()) || table.wager > balance || (table.wager > 0 && locked);
+    if (!table.rematch.includes(identity())) $('boardRematch').textContent = table.wager ? `Đồng ý cược ${table.wager} và chơi ván mới` : 'Chơi ván mới (cần cả hai đồng ý)';
+    $('boardStakeTerms').textContent = table.bet && !table.bet.settled
+      ? `Đã giữ ${table.wager} công đức mỗi người. Tổng cược: ${table.bet.pot}. Thắng nhận tổng cược, hòa hoàn lại. Xin thua/rời bàn/mất mạng quá 30 giây tính thua.`
+      : !valid && editable ? 'Nhập số nguyên từ 0 đến 1.000 công đức.'
+      : chosen > balance ? `Bạn chưa đủ ${chosen} công đức để đồng ý mức cược này.`
+      : chosen > 0 && locked ? 'Đang tạm khóa công đức. Bạn có thể chơi thường với mức 0.'
+      : chosen > 0 ? `Mức cược ${chosen} công đức mỗi người. Chỉ giữ điểm khi đủ 2 người đồng ý. Thắng nhận ${chosen * 2}, hòa hoàn lại; rời bàn hoặc mất mạng quá 30 giây tính thua.`
+      : 'Mức 0 là chơi thường, không thay đổi công đức. Điểm cược là điểm trong game, không quy đổi tiền.';
+    $('boardBetResult').hidden = !table.bet?.settled;
+    if (table.bet?.settled) {
+      const payout = table.bet.payouts.find(p => p.identity === identity());
+      $('boardBetResult').textContent = table.bet.note + (payout ? ` Bạn nhận lại ${payout.amount} công đức từ tổng cược.` : '');
+    }
+  }
   $('bGames').onclick = () => open();
   $('visitGarden').onclick = () => { $('mBoardGames').classList.remove('show'); onVisit(); };
-  $('boardJoin').onclick = () => request('join');
+  $('boardJoin').onclick = () => request('join', { stake: active()?.seats.some(Boolean) ? active().wager : Number($('boardStake').value) });
+  $('boardSetStake').onclick = () => request('stake', { stake: Number($('boardStake').value) });
+  $('boardStake').oninput = () => { const table = active(); if (table) renderStakeControls(table); };
+  $('boardReturn').onclick = () => { const table = active(), seat = seatOf(table); if (seat >= 0) onSeat(table, seat); };
   $('boardLeave').onclick = () => request('leave');
   $('boardResign').onclick = () => request('resign');
-  $('boardRematch').onclick = () => request('rematch');
+  $('boardRematch').onclick = () => request('rematch', { stake: active()?.wager || 0 });
   return { receive, open, refresh: render };
 }

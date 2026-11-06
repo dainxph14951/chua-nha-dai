@@ -920,6 +920,7 @@ function applyMeritStatus(status, live = true) {
   }
   if (player && (player.name !== P.name || player.level !== levelOf(P.merit))) player.setName(P.name, levelOf(P.merit));
   renderProfile(); renderBeads(); syncStart();
+  boardGames?.refresh();
   $('#pSecurity').textContent = '';
   document.body.classList.toggle('merit-blocked', P.blocked);
   if (P.blocked) {
@@ -1058,7 +1059,10 @@ $('#enter').onclick = () => {
       player.meditating = old.meditating;
       player.bowQueue = old.bowQueue; player.bowT = old.bowT;
     }
-    else { player.pos.set(rand(-1.3, 1.3), 0, rand(12.5, 14)); player.faceAltar(); }
+    else {
+      player.pos.set(rand(-0.7, 0.7), 0, 22.8); player.root.rotation.y = 0;
+      cam.yaw = Math.PI; cam.pitch = 0.5; cam.dist = 6.5;
+    }
     player.onBow = onPlayerBow;
   } else {
     player.setLook(robeSel); player.setName(n, levelOf(P.merit));
@@ -1172,15 +1176,17 @@ const room = new SharedRoom({
 });
 const boardGames = setupBoardGames({
   getRoom: () => room,
+  getMerit: () => P.merit,
+  isMeritLocked: () => P.blocked,
   onUpdate: updateCourtTables,
   onVisit: () => {
     if (!player) { toast('Vào chùa trước để ra khuôn viên nhé.'); return; }
     stopAll(); if (player.cushion) player.stand();
-    player.pos.set(0, 0, 20.5); player.root.rotation.y = 0;
-    cam.yaw = Math.PI; cam.pitch = 0.58; cam.dist = 9;
+    player.pos.set(0, 0, 22.8); player.root.rotation.y = 0;
+    cam.yaw = Math.PI; cam.pitch = 0.5; cam.dist = 6.5;
   },
-  onSeat: (table, seat) => {
-    if (!player) return;
+  onSeat: (table, seat, { restoring = false } = {}) => {
+    if (!player || restoring) return;
     stopAll(); if (beadMode) ACTIONS.beads(); if (player.cushion) player.stand();
     player.sit({ x: table.x, z: 27 + (seat === 0 ? 2.6 : -2.6), taken: null, isGameSeat: true });
     player.faceTo(table.x, 27);
@@ -1279,7 +1285,7 @@ canvas.addEventListener('pointerup', dragEnd); canvas.addEventListener('pointerc
 canvas.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = clamp(cam.dist * (1 + Math.sign(e.deltaY) * 0.1), 3, 15); }, { passive: false });
 $('#zIn').onclick = () => cam.dist = clamp(cam.dist * 0.85, 3, 15);
 $('#zOut').onclick = () => cam.dist = clamp(cam.dist * 1.18, 3, 15);
-$('#bCam').onclick = () => { cam.yaw = player ? player.root.rotation.y + Math.PI : 0; cam.pitch = 0.5; cam.dist = 8.5; };
+$('#bCam').onclick = () => { cam.yaw = player ? player.root.rotation.y + Math.PI : 0; cam.pitch = 0.5; cam.dist = player?.pos.z > 17 ? 6.5 : 8.5; };
 $('#bHelp').onclick = () => openModal('mHelp');
 const syncSound = () => $('#bSound').textContent = soundOn ? '🔊' : '🔇';
 $('#bSound').onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); syncSound(); }; syncSound();

@@ -65,6 +65,14 @@ button{font:inherit;cursor:pointer}
 .board-cell.winning,.board-cell.in-check{background-color:#f1a28d!important}
 .board-info{font-size:13px;line-height:1.6}
 #boardSeats{font-weight:600;overflow-wrap:anywhere}
+.board-stakes{margin-top:10px;padding:10px;border:1px solid #d9b98f;border-radius:10px;background:#fff6df;font-size:12px}
+.board-stakes strong{color:var(--red2)}
+.board-stakes label{font-size:12px;margin-top:6px}
+.board-stakes input{padding:7px 9px}
+.board-stakes input:disabled{opacity:.7}
+#boardSetStake{margin-top:6px;padding:7px 10px;font-size:12px}
+#boardSetStake[hidden],#boardBetResult[hidden]{display:none}
+#boardBetResult{font-weight:700;color:var(--red2)}
 .board-buttons{display:flex;flex-direction:column;align-items:stretch}
 .board-buttons .btn{font-size:12px;padding:8px 10px;margin-top:8px;justify-content:center}
 #promotionLabel{font-size:12px}#boardPromotion{padding:5px;border:1px solid #d9b98f;border-radius:7px;background:#fff8e9;font:inherit;color:var(--ink)}
