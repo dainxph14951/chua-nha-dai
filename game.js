@@ -4,6 +4,8 @@ import { SharedRoom, getTopMerit } from './room.js';
 import { WORK_FORTUNES } from './work-fortunes.js';
 import { MILESTONES, milestoneTier, bowCooldownMs } from './milestones.js';
 import { setupBoardGames, pieceLabel } from './board-ui.js';
+import { BAR, BAR_MIN_MERIT, canEnterBar, isInBar, barPosition } from './bar-venue.js';
+import { createBarScene } from './bar-scene.js';
 
 /* =========================================================
    Chùa Hà Online 3D — game.js
@@ -292,7 +294,8 @@ const paving = canvasTex(256, 256, (ctx, w, h) => {
 });
 paving.wrapS = paving.wrapT = THREE.RepeatWrapping; paving.repeat.set(7, 6);
 const yardFloor = mesh(new THREE.PlaneGeometry(28, 22), mat(0xffffff, { map: paving }), 0, 0.006, 27, courtyard); yardFloor.rotation.x = -Math.PI / 2;
-for (const x of [-14, 14]) mesh(new THREE.BoxGeometry(0.25, 1.1, 22), M.stone, x, 0.55, 27, courtyard);
+mesh(new THREE.BoxGeometry(0.25, 1.1, 22), M.stone, -14, 0.55, 27, courtyard);
+for (const [z, length] of [[19, 6], [32, 12]]) mesh(new THREE.BoxGeometry(0.25, 1.1, length), M.stone, 14, 0.55, z, courtyard);
 mesh(new THREE.BoxGeometry(28, 1.1, 0.25), M.stone, 0, 0.55, 38, courtyard);
 const treeMat = mat(0x264c36), trunkMat = mat(0x61432d);
 for (const x of [-12, 12]) for (const z of [20, 34.5]) {
@@ -440,6 +443,7 @@ function renderMilestoneBoard(merit, force = false) {
   });
   x.textAlign = 'center'; x.fillStyle = '#d9bc91'; x.font = '27px "Be Vietnam Pro", sans-serif';
   x.fillText('Thưởng cộng dồn · Không trừ công đức', 512, 1060);
+  x.font = '25px "Be Vietnam Pro", sans-serif'; x.fillText('10.000 hiện có · Vào Lotus Live Bar cạnh vườn cờ', 512, 1100);
   x.fillText('Bấm nút 🏅 để xem và dùng phần thưởng', 512, 1105);
   milestoneTexture.needsUpdate = true;
 }
@@ -921,6 +925,11 @@ function applyMeritStatus(status, live = true) {
   if (player && (player.name !== P.name || player.level !== levelOf(P.merit))) player.setName(P.name, levelOf(P.merit));
   renderProfile(); renderBeads(); syncStart();
   boardGames?.refresh();
+  if (player && isInBar(player.pos) && !canEnterBar(P)) {
+    stopAll(); player.stand(); player.pos.set(BAR.exit.x, 0, BAR.exit.z); player.faceTo(0, 0);
+    cam.yaw = 0; barScene.silence(); toast('Công đức hiện có dưới 10.000 hoặc đang tạm khóa. Bạn đã trở lại ngoài quán.');
+  }
+  refreshBarAccess();
   $('#pSecurity').textContent = '';
   document.body.classList.toggle('merit-blocked', P.blocked);
   if (P.blocked) {
@@ -992,6 +1001,13 @@ function renderRewards() {
     }
     list.append(row);
   }
+  const barReward = document.createElement('div');
+  barReward.className = 'reward-row' + (canEnterBar(P) ? ' unlocked' : '');
+  const barTitle = document.createElement('strong'); barTitle.textContent = '♫ 10.000 · Lotus Live Bar';
+  const barDetail = document.createElement('div'); barDetail.textContent = 'Cần 10.000 công đức hiện có · Vào quán cạnh vườn cờ, nghe nhạc và gặp mọi người · Không mất điểm vào cửa.';
+  const barButton = document.createElement('button'); barButton.textContent = 'Xem quán bar';
+  barButton.onclick = () => { closeModal('mRewards'); refreshBarAccess(); openModal('mBar'); };
+  barReward.append(barTitle, barDetail, barButton); list.append(barReward);
   $('#rewardGreet').disabled = P.rewardMerit < 2000;
   $('#rewardLantern').disabled = P.rewardMerit < 3000;
   $('#rewardLamp').disabled = P.rewardMerit < 4000 || ritualPending;
@@ -1196,6 +1212,33 @@ const boardGames = setupBoardGames({
     if (player?.cushion?.isGameSeat) { const side = Math.sign(player.pos.z - 27) || 1; player.stand(); player.pos.z = 27 + side * 3.3; }
   },
 });
+const barScene = createBarScene({ THREE, scene, mesh, mat, nameSprite, audioContext: ac });
+for (const x of [18, 26]) for (const z of [24.5, 28.5]) PILLARS.push({ x, z, r: .85 });
+let barDoorNoticeAt = 0;
+function refreshBarAccess() {
+  const inside = player && isInBar(player.pos), allowed = canEnterBar(P);
+  $('#barAccess').textContent = `Bạn có ${P.merit.toLocaleString('vi-VN')} công đức. ` + (P.blocked ? 'Đang tạm khóa công đức.' : allowed ? 'Đã đủ điều kiện vào quán.' : `Cần thêm ${Math.max(0, BAR_MIN_MERIT - P.merit).toLocaleString('vi-VN')} công đức.`);
+  $('#barEnter').disabled = !player || !allowed || !room.ready || !!inside;
+  $('#barExit').hidden = !inside;
+}
+$('#bBar').onclick = () => { refreshBarAccess(); openModal('mBar'); };
+$('#barDoorBtn').onclick = () => { refreshBarAccess(); openModal('mBar'); };
+async function visitBar(action) {
+  if (!player || !room.ready) { toast('Hãy vào phòng chung trước.'); return; }
+  ac();
+  const button = action === 'enter' ? $('#barEnter') : $('#barExit'); button.disabled = true;
+  try {
+    const { position } = await room.post('bar', { action });
+    stopAll(); if (beadMode) ACTIONS.beads(); player.stand();
+    player.pos.set(position.x, 0, position.z); player.faceTo(action === 'enter' ? 22 : 0, action === 'enter' ? 33 : 0);
+    cam.yaw = action === 'enter' ? Math.PI : 0; cam.pitch = action === 'enter' ? .8 : .5; cam.dist = action === 'enter' ? 10 : 6.5;
+    closeModal('mBar'); if (action === 'exit') barScene.silence();
+  } catch (error) { toast(error.message); }
+  finally { button.disabled = false; refreshBarAccess(); }
+}
+$('#barEnter').onclick = () => visitBar('enter');
+$('#barExit').onclick = () => visitBar('exit');
+document.addEventListener('visibilitychange', () => { if (document.hidden) barScene.silence(); });
 const tableRaycaster = new THREE.Raycaster(), tablePointer = new THREE.Vector2();
 let tablePress = null;
 canvas.addEventListener('pointerdown', e => { tablePress = { id: e.pointerId, x: e.clientX, y: e.clientY }; });
@@ -1288,7 +1331,7 @@ $('#zOut').onclick = () => cam.dist = clamp(cam.dist * 1.18, 3, 15);
 $('#bCam').onclick = () => { cam.yaw = player ? player.root.rotation.y + Math.PI : 0; cam.pitch = 0.5; cam.dist = player?.pos.z > 17 ? 6.5 : 8.5; };
 $('#bHelp').onclick = () => openModal('mHelp');
 const syncSound = () => $('#bSound').textContent = soundOn ? '🔊' : '🔇';
-$('#bSound').onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); syncSound(); }; syncSound();
+$('#bSound').onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); if (!soundOn) barScene.silence(); else ac(); syncSound(); }; syncSound();
 
 /* ---------------- Player actions ---------------- */
 let nearCushion = null, beadMode = false, beadAuto = false, beadAutoT = 0;
@@ -1609,6 +1652,16 @@ function updatePlayer(dt, t) {
       const sp = 3.4 * mag * dt;
       let nx = player.pos.x + mx / l * sp, nz = player.pos.z + mz / l * sp;
       nx = clamp(nx, HALL.minX, HALL.maxX); nz = clamp(nz, HALL.minZ, HALL.maxZ);
+      // The bar is beside the courtyard; cross its doorway only, not the perimeter walls.
+      const rawX = player.pos.x + mx / l * sp;
+      if (isInBar(player.pos)) {
+        const position = barPosition(rawX, nz, canEnterBar(P)); nx = position.x; nz = position.z;
+        if (rawX < BAR.minX && nz >= 22 && nz <= 26) { nx = BAR.exit.x; refreshBarAccess(); }
+        if (nz > 31.2) nz = 31.2; // Stage and band are behind this edge.
+      } else if (rawX > HALL.maxX && nz >= 22 && nz <= 26) {
+        if (canEnterBar(P) && room.ready) { nx = BAR.entry.x; refreshBarAccess(); }
+        else if (!barDoorNoticeAt || performance.now() > barDoorNoticeAt) { toast('Lotus Bar cần đủ 10.000 công đức hiện có.'); barDoorNoticeAt = performance.now() + 3000; }
+      }
       // Đi qua cửa chính để ra/vào khuôn viên, không xuyên qua hai cánh tường.
       if (Math.abs(nx) > 3.5 && ((player.pos.z <= 16.4 && nz > 16) || (player.pos.z > 16.4 && nz < 16.8))) nz = player.pos.z <= 16.4 ? 16 : 16.8;
       for (const p of PILLARS) {
@@ -1782,7 +1835,7 @@ function updateCamera(dt) {
   let x = camTarget.x + Math.sin(cam.yaw) * cp * cam.dist;
   let y = camTarget.y + Math.sin(cam.pitch) * cam.dist;
   let z = camTarget.z + Math.cos(cam.yaw) * cp * cam.dist;
-  x = clamp(x, -13.6, 13.6); z = clamp(z, -22, 41); y = clamp(y, 0.6, player.pos.z > 17 ? 10 : 7.8);
+  x = clamp(x, isInBar(player.pos) ? 14.5 : -13.6, isInBar(player.pos) ? 33.5 : 13.6); z = clamp(z, -22, 41); y = clamp(y, 0.6, player.pos.z > 17 ? 10 : 7.8);
   camera.position.set(x, y, z);
   camera.lookAt(camTarget);
 }
@@ -1799,6 +1852,12 @@ const clock = new THREE.Clock();
 function loop() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   if (player) updatePlayer(dt, t);
+  const insideBar = !!player && isInBar(player.pos);
+  barScene.update(player?.pos, soundOn && room.ready && canEnterBar(P));
+  $('#barDoorBtn').hidden = !player || (!insideBar && Math.hypot(player.pos.x - 12.5, player.pos.z - 23.5) > 4);
+  $('#barDoorBtn').textContent = insideBar ? '♫ Lotus Bar · Ra quán' : '♫ Lotus Bar · 10.000 công đức';
+  $('#barNowPlaying').hidden = !insideBar;
+  $('#barNowPlaying').textContent = soundOn && room.ready ? '♫ Lotus Live · Nhạc không lời' : '♫ Lotus Live · Đang tắt nhạc';
   $('#tablePlayBtn').hidden = !player || player.pos.z < 21 || !COURT_TABLES.some(table => Math.hypot(table.x - player.pos.x, 27 - player.pos.z) < 4.5);
   updateRoomPlayers(dt, t);
   updateNPCs(dt, t);

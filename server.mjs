@@ -8,6 +8,7 @@ import { createMeritAccount, meritStatus, performMeritAction, lockMerit, refresh
 import { openMeritLedger } from './merit-ledger.mjs';
 import { createGameTables, snapshotTables, setTablePresence } from './board-games.mjs';
 import { actOnStakedTable, expireStakedSeats, cancelBlockedBets } from './board-stakes.mjs';
+import { BAR, canEnterBar, barPosition, isInBar } from './bar-venue.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
@@ -18,10 +19,11 @@ const cleanText = (value, max) => typeof value === 'string'
 const number = (value, min, max, fallback) => Number.isFinite(value)
   ? Math.max(min, Math.min(max, value)) : fallback;
 
-function sanitize(input = {}) {
+function sanitize(input = {}, account = {}) {
   const merit = Math.floor(number(input.merit, 0, 1_000_000_000, 0));
   const rewardMerit = earnedMerit(merit, input.rewardMerit);
   const rewardRobe = MILESTONES.find(m => m.robe !== undefined && m.robe === input.robe && rewardMerit >= m.merit);
+  const position = barPosition(number(input.x, -13.2, 29.5, 0), number(input.z, -13.6, 37, 22.8), canEnterBar(account));
   return {
     name: cleanText(input.name, 18) || 'Phật tử',
     robe: ROBES.includes(input.robe) || rewardRobe ? input.robe : ROBES[0],
@@ -29,7 +31,7 @@ function sanitize(input = {}) {
     level: Math.floor(number(input.level, 1, 999, 1)),
     merit, rewardMerit,
     greeting: input.greeting === true && rewardMerit >= 2000,
-    x: number(input.x, -13.2, 13.2, 0), z: number(input.z, -13.6, 37, 22.8),
+    ...position,
     yaw: number(input.yaw, -Math.PI * 2, Math.PI * 2, Math.PI),
     state: ['stand', 'walk', 'sit'].includes(input.state) ? input.state : 'stand',
     meditating: input.meditating === true,
@@ -48,10 +50,13 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
   let dirty = false;
   const verified = account => ({ merit: account.merit, rewardMerit: account.rewardMerit, level: Math.floor(Math.sqrt(account.merit / 12)) + 1 });
   const players = () => [...sessions.values()].filter(s => s.stream).map(s => ({ id: s.id,
-    ...sanitize({ ...s.player, ...verified(s.account) }), meritBlocked: s.account.blocked, meritIdentity: s.account.publicId }));
+    ...sanitize({ ...s.player, ...verified(s.account) }, s.account), meritBlocked: s.account.blocked, meritIdentity: s.account.publicId }));
   function updateMerit(account) {
     dirty = true;
-    for (const session of sessions.values()) if (session.account === account) send(session, 'merit', meritStatus(account, now()));
+    for (const session of sessions.values()) if (session.account === account) {
+      if (!canEnterBar(account) && isInBar(session.player)) Object.assign(session.player, BAR.exit, { state: 'stand' });
+      send(session, 'merit', meritStatus(account, now()));
+    }
   }
   async function refreshAccount(account) {
     if (refreshMeritLock(account, now())) { await persist(); updateMerit(account); }
@@ -118,7 +123,7 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
           res.setHeader('Set-Cookie', `chuaha_identity=${accountId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${secure ? '; Secure' : ''}`);
           const session = {
             id: randomUUID(), token: randomBytes(24).toString('hex'), account,
-            player: sanitize({ ...input, ...verified(account) }),
+            player: sanitize({ ...input, ...verified(account) }, account),
             stream: null, touched: Date.now(), lastChat: 0, lastState: 0, lastRitual: 0,
           };
           sessions.set(session.id, session);
@@ -155,6 +160,14 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
         const input = await body(req);
         session.touched = Date.now();
         await refreshAccount(session.account);
+        if (url.pathname === '/api/bar') {
+          if (!session.stream) return json(res, 409, { error: 'Hãy kết nối phòng chung trước.' });
+          if (!['enter', 'exit'].includes(input.action)) return json(res, 400, { error: 'Thao tác quán bar không hợp lệ.' });
+          if (input.action === 'enter' && !canEnterBar(session.account)) return json(res, 403, { error: 'Cần đủ 10.000 công đức hiện có và không bị khóa để vào Lotus Bar. Không trừ điểm vào cửa.' });
+          const position = input.action === 'enter' ? BAR.entry : BAR.exit;
+          Object.assign(session.player, position, { state: 'stand', meditating: false, bowQueue: 0 }); dirty = true;
+          return json(res, 200, { position, account: meritStatus(session.account, now()) });
+        }
         if (url.pathname === '/api/table') {
           if (!session.stream) return json(res, 409, { error: 'Hãy kết nối phòng chung để chơi cờ.' });
           const identity = session.account.publicId, previous = boardRequests.get(identity);
@@ -176,7 +189,7 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
             return json(res, result.status, { ...result, account: meritStatus(session.account, now()) });
           }
           const previousName = session.player.name;
-          session.player = sanitize({ ...input, ...verified(session.account) }); dirty = true;
+          session.player = sanitize({ ...input, ...verified(session.account) }, session.account); dirty = true;
           if (session.player.name !== previousName && setTablePresence(tables, boardActor(session), true, now())) broadcastTables();
           return json(res, 200, { ok: true });
         }
@@ -213,7 +226,7 @@ export function createRoomServer({ accounts = new Map(), persist = async () => {
       if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
       const filename = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
       // Only public assets are served; never expose source, Git metadata, or dotfiles.
-      if (!['index.html', 'style.css', 'game.js', 'room.js', 'board-ui.js', 'milestones.js', 'work-fortunes.js', 'lib/three.module.js', 'lib/RoomEnvironment.js'].includes(filename)) {
+      if (!['index.html', 'style.css', 'game.js', 'room.js', 'board-ui.js', 'bar-venue.js', 'bar-scene.js', 'milestones.js', 'work-fortunes.js', 'lib/three.module.js', 'lib/RoomEnvironment.js'].includes(filename)) {
         res.writeHead(404); return res.end('Not found');
       }
       const data = await readFile(path.join(ROOT, filename));

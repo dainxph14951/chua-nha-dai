@@ -45,6 +45,12 @@ Chọn quân rồi chọn ô sáng để đi; ca-rô chỉ cần chọn ô trố
 
 Ván cờ được làm mới khi máy chủ khởi động lại; cược chưa quyết toán được hoàn một lần từ sổ dữ liệu. Việc khôi phục chỉ hoạt động khi tệp `MERIT_DATA_FILE` còn được giữ: ổ đĩa tạm trên Render Free có thể mất cả số dư lẫn cược đang giữ khi triển khai lại. Danh tính bị khóa do gian lận bị hủy ván và không được hoàn cược; đối thủ hợp lệ được hoàn điểm.
 
+## Lotus Live Bar · 10.000 công đức
+
+Quán nằm bên phải khu bàn cờ, có cửa nối với sân, bàn ngồi và sân khấu với ban nhạc mô phỏng. Bấm **🎵 → Vào quán** hoặc đi qua cửa cạnh khu cờ. Cần **số dư hiện tại từ 10.000 công đức** và không bị khóa tích điểm; vào quán không trừ điểm. Máy chủ kiểm tra điều kiện và đồng bộ người chơi trong quán với phòng chung. Nếu số dư xuống dưới ngưỡng (kể cả do cược cờ), nhân vật được đưa ra ngoài cửa; mốc phần thưởng đã từng đạt không thay thế điều kiện số dư này.
+
+Nhạc không lời do Web Audio tổng hợp trực tiếp, có giai điệu, hợp âm và bass; ban nhạc/sân khấu là mô phỏng, không phải luồng biểu diễn thật từ Internet. Nhạc chỉ phát khi người chơi ở trong bar, tự dừng khi ra ngoài, mất kết nối, chuyển tab hoặc tắt âm bằng **🔊**. Trình duyệt cần thao tác bấm của người dùng để cho phép phát âm thanh. Không tải nhạc từ dịch vụ bên ngoài. Bấm **🎵 → Ra khu bàn cờ** để rời quán; tải lại vẫn xuất hiện ngoài cổng chùa.
+
 ## Chạy
 
 Cần **Node.js 20 trở lên**, cài phụ thuộc một lần rồi chạy, không cần build:
@@ -111,6 +117,9 @@ Sổ dữ liệu mặc định là `.data/merit-ledger.json`, ghi nguyên tử, 
 - `board-games.test.mjs`: kiểm thử luật và đồng bộ bàn cờ
 - `board-stakes.mjs`: xác nhận mức cược, giữ điểm, quyết toán và khôi phục cược
 - `board-stakes.test.mjs`: kiểm thử số dư, đồng ý cược, thắng/hòa, mất mạng và khôi phục
+- `bar-venue.js`: ngưỡng vào bar và giới hạn vị trí dùng chung với máy chủ
+- `bar-scene.js`: quán bar 3D, ban nhạc mô phỏng và nhạc Web Audio
+- `bar-venue.test.mjs`: kiểm thử điều kiện vào bar, đồng bộ và mất quyền khi số dư giảm
 - `milestones.js`: bốn cột mốc, điều kiện mở khóa trang phục và nghi thức
 - `server.mjs`: máy chủ HTTP, phòng chung realtime qua SSE, API cập nhật nhân vật và chat
 - `server.test.mjs`: kiểm thử tích hợp máy chủ
